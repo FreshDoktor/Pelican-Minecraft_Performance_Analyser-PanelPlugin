@@ -56,6 +56,26 @@ class MetricsHistoryTest extends TestCase
         $this->assertSame([5000], array_column($restarted, 't'));
     }
 
+    public function test_a_new_started_at_is_a_restart(): void
+    {
+        $metrics = DiagnosticsTest::example('metrics');
+        $sample = MetricsHistory::sample($metrics);
+
+        $this->assertSame(1792866595712, $sample['started']);
+
+        // Same JVM, a later reading.
+        $later = MetricsHistory::sample([...$metrics, 'sampled_at' => $metrics['sampled_at'] + 3000, 'uptime_ms' => $metrics['uptime_ms'] + 3000]);
+        $this->assertFalse(MetricsHistory::restarted($sample, $later));
+
+        // Another JVM, even with a larger uptime by chance.
+        $restarted = MetricsHistory::sample([...$metrics, 'started_at' => $metrics['started_at'] + 5000, 'uptime_ms' => $metrics['uptime_ms'] + 10]);
+        $this->assertTrue(MetricsHistory::restarted($sample, $restarted));
+
+        // Without started_at, a smaller uptime still counts.
+        $old = ['t' => 0, 'uptime' => 1000, 'young' => 0, 'old' => 0, 'max' => 1, 'gc_pause_ms' => 0.0];
+        $this->assertTrue(MetricsHistory::restarted($old, [...$old, 't' => 1, 'uptime' => 10]));
+    }
+
     public function test_gc_per_minute_and_share(): void
     {
         $history = [

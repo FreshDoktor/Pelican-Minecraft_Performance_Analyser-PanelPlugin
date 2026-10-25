@@ -22,6 +22,11 @@ return [
     'verify_tls' => (bool) env('MPA_BRIDGE_VERIFY_TLS', true),
 
     // Development only: answer every request with the examples in resources/fake-bridge instead of asking
-    // the bridge, so the page can be looked at before a bridge runs on the node.
-    'fake_bridge' => (bool) env('MPA_FAKE_BRIDGE', false),
+    // the bridge, so the page can be looked at before a bridge runs on the node. true plays a bridge with
+    // every feature, m1 or m2 a bridge of that milestone (see FakeBridge).
+    'fake_bridge' => env('MPA_FAKE_BRIDGE', false),
+
+    // Seconds between two readings of the live heap (GET /metrics?live=1, two attach commands, one with a
+    // short safepoint) while the overview is open. 0 turns them off.
+    'live_interval' => (int) env('MPA_LIVE_INTERVAL', 30),
 ];

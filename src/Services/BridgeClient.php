@@ -25,9 +25,8 @@ use Illuminate\Support\Facades\Lang;
  * right node. Unlike Wings the bridge has its own address per node (see NodeBridge), and TLS is only
  * checked when that address is https.
  *
- * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 30d9143
- * (the contract of 06db32d plus "/status can answer 503 docker_unavailable"). Unknown fields are ignored,
- * as the contract asks.
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 20f2692
+ * (milestone 2 of the bridge). Unknown fields are ignored, as the contract asks.
  */
 class BridgeClient
 {
@@ -36,7 +35,7 @@ class BridgeClient
     public const API_VERSION = 1;
 
     /** Commit of docs/API.md in the bridge repo this client was written against. */
-    public const CONTRACT = '30d9143';
+    public const CONTRACT = '20f2692';
 
     public const DEFAULT_PORT = 8090;
 
@@ -274,7 +273,9 @@ class BridgeClient
 
     public function isFake(): bool
     {
-        return (bool) config(MinecraftPerformanceAnalyserPlugin::ID.'.fake_bridge', false);
+        $setting = config(MinecraftPerformanceAnalyserPlugin::ID.'.fake_bridge', false);
+
+        return $setting !== null && $setting !== false && $setting !== '' && $setting !== 'false';
     }
 
     /**
@@ -315,7 +316,8 @@ class BridgeClient
         if ($this->isFake()) {
             // Only this request is answered by the examples, see FakeBridge. stub() takes a list of callbacks.
             $fake = app(FakeBridge::class);
-            $request->stub([fn (Request $request) => $fake->respond($request, $node)]);
+            $milestone = FakeBridge::milestone(config(MinecraftPerformanceAnalyserPlugin::ID.'.fake_bridge'));
+            $request->stub([fn (Request $request) => $fake->respond($request, $node, $milestone)]);
         }
 
         return $request;

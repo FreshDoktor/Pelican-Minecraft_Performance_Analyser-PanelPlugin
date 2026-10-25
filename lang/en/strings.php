@@ -111,6 +111,10 @@ return [
                 'title' => 'The server is not running',
                 'body' => 'Start it to see its JVM. This tab looks again every few seconds.',
             ],
+            'server_paused' => [
+                'title' => 'The server\'s container is paused',
+                'body' => 'Docker has frozen the container, the JVM can\'t be read until it is unpaused. This tab looks again every few seconds.',
+            ],
             'no_java_process' => [
                 'title' => 'No Java process yet',
                 'body' => 'The server\'s container runs, but Java isn\'t up (yet). This tab looks again every few seconds.',
@@ -166,6 +170,18 @@ return [
         'metaspace' => 'Metaspace',
         'classes' => ':count classes loaded',
         'vm_args' => 'JVM arguments',
+        'heap_live' => 'Heap now (live)',
+        'heap_live_hint' => 'of :committed reserved, as of :time',
+        'heap_live_waiting' => 'read every 30 seconds',
+        'heap_live_unsupported' => 'this bridge can\'t read it yet',
+        // Why VM.flags are missing (flags_error and attach.reason of /vm).
+        'flags' => [
+            'jvm_starting' => 'The JVM is just starting, its flags are read in half a minute.',
+            'disabled' => 'The startup command has -XX:+DisableAttachMechanism, so thread dumps, histograms, flags and live values can\'t be read.',
+            'xrs' => 'The startup command has -Xrs, so the bridge doesn\'t start the attach listener (it would stop the server): no thread dumps, histograms, flags or live values.',
+            'unknown' => 'The bridge can\'t attach to this JVM right now, its flags are missing.',
+            'failed' => 'The flags of the JVM could not be read, they are tried again in half a minute.',
+        ],
     ],
 
     // Rules of Services\Diagnostics. Each has a title and one or more bodies.
@@ -244,6 +260,7 @@ return [
             'attach_failed' => 'The JVM refused the command of the bridge.',
             'attach_timeout' => 'The JVM didn\'t answer the bridge in time.',
             'output_too_large' => 'The answer of the JVM is larger than the bridge allows.',
+            'parse_failed' => 'The JVM answered in a form the bridge doesn\'t know. Is the Java version newer than the bridge?',
             'profile_running' => 'A lag analysis is running already for this server.',
             'too_many_profiles' => 'Too many lag analyses run on this node right now (at most :limit), try again in a moment.',
             'profile_not_found' => 'This lag analysis is no longer known to the bridge, it keeps results for 15 minutes.',

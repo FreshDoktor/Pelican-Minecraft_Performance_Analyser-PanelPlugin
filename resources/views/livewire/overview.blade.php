@@ -175,6 +175,10 @@
                         <div class="mpa-muted">{{ trans($s.'vm_args') }}</div>
                         <div class="mpa-code">{{ $args }}</div>
                     @endif
+
+                    @if ($note = $this->flagsNote())
+                        <span class="mpa-muted">{{ $note }}</span>
+                    @endif
                 </section>
         @endswitch
     </div>

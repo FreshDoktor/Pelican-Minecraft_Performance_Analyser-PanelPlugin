@@ -6,12 +6,13 @@ namespace FreshDoktor\MinecraftPerformanceAnalyser\Support;
  * The samples of /metrics the overview keeps while it is open, for the charts and the rule "high GC share".
  *
  * The bridge's counters are cumulative since the JVM started (docs/API.md, GET /metrics), rates are the
- * difference of two samples divided by the difference of their sampled_at. A smaller uptime_ms than
- * before means the JVM restarted, the history starts over then.
+ * difference of two samples divided by the difference of their sampled_at. Another started_at than
+ * before means the JVM restarted (a smaller uptime_ms for bridges without started_at), the history
+ * starts over then.
  *
  * Heap values are the state after the last GC (source after_gc), not live values.
  *
- * @phpstan-type Sample array{t: int, uptime: int|null, young: int, old: int, max: int, gc_pause_ms: float}
+ * @phpstan-type Sample array{t: int, started?: int|null, uptime: int|null, young: int, old: int, max: int, gc_pause_ms: float}
  */
 final class MetricsHistory
 {
@@ -37,6 +38,7 @@ final class MetricsHistory
 
         return [
             't' => (int) ($metrics['sampled_at'] ?? 0),
+            'started' => isset($metrics['started_at']) ? (int) $metrics['started_at'] : null,
             'uptime' => isset($metrics['uptime_ms']) ? (int) $metrics['uptime_ms'] : null,
             'young' => $young,
             'old' => $old,
@@ -98,6 +100,10 @@ final class MetricsHistory
      */
     public static function restarted(array $previous, array $sample): bool
     {
+        if (($previous['started'] ?? null) !== null && ($sample['started'] ?? null) !== null) {
+            return $previous['started'] !== $sample['started'];
+        }
+
         return $previous['uptime'] !== null && $sample['uptime'] !== null && $sample['uptime'] < $previous['uptime'];
     }
 

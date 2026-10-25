@@ -3,7 +3,7 @@
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Services;
 
 /**
- * Turns a finished profile of the bridge (docs/API.md, "Profile result", wing commit 30d9143) into what
+ * Turns a finished profile of the bridge (docs/API.md, "Profile result", wing commit 20f2692) into what
  * the tab Lag analysis shows: the share of the tick time per mod, the top methods, the GC pauses and
  * the stacks for the flamegraph.
  *

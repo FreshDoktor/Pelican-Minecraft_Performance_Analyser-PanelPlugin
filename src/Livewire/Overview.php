@@ -14,6 +14,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\MetricsHistory;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\SvgChart;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Carbon;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Throwable;
@@ -41,6 +42,14 @@ class Overview extends Component
 
     /** Seconds between two tries while the server is stopped or Java not up yet. */
     public const NOT_READY_POLL_SECONDS = 10;
+
+    /** Seconds between two readings of the live heap, see config live_interval. */
+    public const DEFAULT_LIVE_INTERVAL = 30;
+
+    public const MIN_LIVE_INTERVAL = 10;
+
+    /** Seconds until VM.flags are asked for again when they failed for a passing reason. */
+    public const VM_RETRY_SECONDS = 30;
 
     public const STATE_LOADING = 'loading';
 
@@ -71,6 +80,26 @@ class Overview extends Component
     #[Locked]
     public ?string $vmError = null;
 
+    /** When /vm was fetched (Unix seconds), to ask again for VM.flags while the JVM starts. */
+    #[Locked]
+    public ?int $vmFetchedAt = null;
+
+    /** @var array<string, mixed>|null live_heap of the last GET /metrics?live=1 */
+    #[Locked]
+    public ?array $liveHeap = null;
+
+    /** When the live heap was asked for last (Unix seconds). */
+    #[Locked]
+    public ?int $liveAt = null;
+
+    /** live_heap_error of the last try, e.g. attach_unavailable. */
+    #[Locked]
+    public ?string $liveError = null;
+
+    /** False once the bridge answered not_implemented for the live heap. */
+    #[Locked]
+    public bool $liveSupported = true;
+
     /** @var array<string, mixed>|null last answer of GET /metrics */
     #[Locked]
     public ?array $metrics = null;
@@ -85,14 +114,16 @@ class Overview extends Component
     }
 
     /**
-     * Read the metrics again, called by wire:init and wire:poll.
+     * Read the metrics again, called by wire:init and wire:poll. Every live_interval seconds with the live
+     * heap (?live=1), see wantsLive().
      */
     public function refresh(): void
     {
         $server = $this->getServer();
+        $live = $this->wantsLive();
 
         try {
-            $metrics = $this->bridge()->metrics($server);
+            $metrics = $this->bridge()->metrics($server, $live);
         } catch (BridgeException $exception) {
             $this->fail($exception);
 
@@ -107,9 +138,15 @@ class Overview extends Component
         $sample = MetricsHistory::sample($metrics);
         $last = $this->history === [] ? null : $this->history[array_key_last($this->history)];
 
-        // A new JVM has other start arguments and maybe other limits.
+        // A new JVM has other start arguments and maybe other limits, and its old live heap is gone.
         if ($last !== null && MetricsHistory::restarted($last, $sample)) {
             $this->vm = null;
+            $this->liveHeap = null;
+            $this->liveAt = null;
+        }
+
+        if ($live) {
+            $this->takeLiveHeap($metrics);
         }
 
         $this->history = MetricsHistory::push($this->history, $sample, self::HISTORY_SIZE);
@@ -118,13 +155,72 @@ class Overview extends Component
         $this->notReadyCode = null;
         $this->error = null;
 
-        if ($this->vm === null) {
+        if ($this->vm === null || $this->shouldReloadVm()) {
             $this->loadVm();
         }
     }
 
+    /**
+     * Whether this poll asks for the live heap. ?live=1 costs the JVM two attach commands (GC.heap_info
+     * with a short safepoint, VM.metaspace), so not on every poll of 2 to 5 s but every live_interval
+     * seconds (30 by default), and never again once the bridge says it can't.
+     */
+    protected function wantsLive(): bool
+    {
+        $interval = (int) config(MinecraftPerformanceAnalyserPlugin::ID.'.live_interval', self::DEFAULT_LIVE_INTERVAL);
+
+        if (!$this->liveSupported || $interval <= 0) {
+            return false;
+        }
+
+        // The bridge won't attach to this JVM (-XX:+DisableAttachMechanism, -Xrs): no use asking.
+        if (in_array($this->vm['attach']['reason'] ?? null, ['disabled', 'xrs'], true)) {
+            return false;
+        }
+
+        return $this->liveAt === null || time() - $this->liveAt >= max(self::MIN_LIVE_INTERVAL, $interval);
+    }
+
+    /**
+     * @param  array<string, mixed>  $metrics
+     */
+    protected function takeLiveHeap(array $metrics): void
+    {
+        $this->liveAt = time();
+        $error = $metrics['live_heap_error'] ?? null;
+
+        if (is_array($metrics['live_heap'] ?? null)) {
+            $this->liveHeap = $metrics['live_heap'];
+        } elseif ($error === 'not_implemented') {
+            // A bridge before its milestone 2.
+            $this->liveSupported = false;
+            $this->liveHeap = null;
+        } else {
+            // attach_unavailable while the JVM starts, a timeout: keep the last reading, try again next time.
+            $this->liveError = is_string($error) ? $error : null;
+        }
+    }
+
+    /**
+     * VM.flags failed for a reason that passes (the JVM is just starting, a timeout): ask again after a while.
+     */
+    protected function shouldReloadVm(): bool
+    {
+        if ($this->vm === null || ($this->vm['flags'] ?? null) !== null || $this->vmFetchedAt === null) {
+            return false;
+        }
+
+        $error = $this->vm['flags_error'] ?? null;
+        $passes = in_array($error, ['attach_timeout', 'attach_failed'], true)
+            || ($error === 'attach_unavailable' && ($this->vm['attach']['reason'] ?? null) === 'jvm_starting');
+
+        return $passes && time() - $this->vmFetchedAt >= self::VM_RETRY_SECONDS;
+    }
+
     protected function loadVm(): void
     {
+        $this->vmFetchedAt = time();
+
         try {
             $this->vm = $this->bridge()->vm($this->getServer());
             $this->vmError = null;
@@ -146,9 +242,14 @@ class Overview extends Component
             $this->state = self::STATE_BRIDGE_MISSING;
         } elseif (in_array($exception->errorCode, BridgeClient::NOT_READY_STATES, true)) {
             $this->state = self::STATE_NOT_READY;
-            $this->notReadyCode = $exception->errorCode;
+            // A paused container is server_not_running too, with container_state paused.
+            $this->notReadyCode = $exception->errorCode === 'server_not_running' && ($exception->details['container_state'] ?? null) === 'paused'
+                ? 'server_paused'
+                : $exception->errorCode;
             $this->history = [];
             $this->vm = null;
+            $this->liveHeap = null;
+            $this->liveAt = null;
         } else {
             $this->state = self::STATE_ERROR;
         }
@@ -171,7 +272,9 @@ class Overview extends Component
      */
     public function findings(): array
     {
-        return app(Diagnostics::class)->run($this->vm, $this->metrics, $this->history);
+        $liveMetaspace = $this->liveHeap['metaspace'] ?? null;
+
+        return app(Diagnostics::class)->run($this->vm, $this->metrics, $this->history, is_array($liveMetaspace) ? $liveMetaspace : null);
     }
 
     /**
@@ -269,6 +372,13 @@ class Overview extends Component
                 'hint' => $xmx === null ? $t('no_xmx') : null,
             ],
             [
+                'label' => $t('heap_live'),
+                'value' => isset($this->liveHeap['used_bytes']) ? Format::bytes($this->liveHeap['used_bytes']) : '–',
+                'hint' => isset($this->liveHeap['used_bytes'])
+                    ? $t('heap_live_hint', ['committed' => Format::bytes($this->liveHeap['committed_bytes'] ?? null), 'time' => Carbon::createFromTimestampMs((int) ($this->liveHeap['sampled_at'] ?? 0))->setTimezone(user()?->timezone ?? config('app.timezone'))->format('H:i:s')])
+                    : ($this->liveSupported ? $t('heap_live_waiting') : $t('heap_live_unsupported')),
+            ],
+            [
                 'label' => $t('memory_limit'),
                 'value' => $limit === null ? $t('unlimited') : Format::bytes($limit),
                 'hint' => $limit !== null && ($xmx ?? $heapMax) !== null ? $t('heap_of_limit', ['percent' => Format::percent(($xmx ?? $heapMax) / $limit * 100, 0)]) : null,
@@ -293,6 +403,25 @@ class Overview extends Component
                 'hint' => isset($metrics['classes']['current']) ? $t('classes', ['count' => number_format($metrics['classes']['current'])]) : null,
             ],
         ];
+    }
+
+    /**
+     * Why VM.flags are missing, null when they are there or the bridge can't read them at all yet (milestone 1).
+     */
+    public function flagsNote(): ?string
+    {
+        if ($this->vm === null || ($this->vm['flags'] ?? null) !== null) {
+            return null;
+        }
+
+        $error = $this->vm['flags_error'] ?? null;
+        $t = fn (string $key) => trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.overview.flags.'.$key);
+
+        return match (true) {
+            $error === null, $error === 'not_implemented' => null,
+            $error === 'attach_unavailable' => $t(in_array($this->vm['attach']['reason'] ?? null, ['disabled', 'xrs', 'jvm_starting'], true) ? $this->vm['attach']['reason'] : 'unknown'),
+            default => $t('failed'),
+        };
     }
 
     /**

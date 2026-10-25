@@ -111,6 +111,10 @@ return [
                 'title' => 'Der Server läuft nicht',
                 'body' => 'Starte ihn, um seine JVM zu sehen. Dieser Tab schaut alle paar Sekunden wieder nach.',
             ],
+            'server_paused' => [
+                'title' => 'Der Container des Servers ist pausiert',
+                'body' => 'Docker hat den Container eingefroren, die JVM lässt sich erst wieder lesen, wenn er fortgesetzt wird. Dieser Tab schaut alle paar Sekunden wieder nach.',
+            ],
             'no_java_process' => [
                 'title' => 'Noch kein Java-Prozess',
                 'body' => 'Der Container des Servers läuft, Java aber (noch) nicht. Dieser Tab schaut alle paar Sekunden wieder nach.',
@@ -166,6 +170,18 @@ return [
         'metaspace' => 'Metaspace',
         'classes' => ':count Klassen geladen',
         'vm_args' => 'JVM-Argumente',
+        'heap_live' => 'Heap jetzt (live)',
+        'heap_live_hint' => 'von :committed reserviert, Stand :time',
+        'heap_live_waiting' => 'wird alle 30 Sekunden gelesen',
+        'heap_live_unsupported' => 'kann diese Bridge noch nicht lesen',
+        // Warum VM.flags fehlen (flags_error und attach.reason von /vm).
+        'flags' => [
+            'jvm_starting' => 'Die JVM startet gerade, ihre Flags werden in einer halben Minute gelesen.',
+            'disabled' => 'Im Startbefehl steht -XX:+DisableAttachMechanism, darum lassen sich Thread-Dumps, Histogramme, Flags und Live-Werte nicht lesen.',
+            'xrs' => 'Im Startbefehl steht -Xrs, darum startet die Bridge den Attach-Listener nicht (er würde den Server beenden): keine Thread-Dumps, Histogramme, Flags oder Live-Werte.',
+            'unknown' => 'Die Bridge kann sich gerade nicht mit dieser JVM verbinden, ihre Flags fehlen.',
+            'failed' => 'Die Flags der JVM ließen sich nicht lesen, sie werden in einer halben Minute erneut versucht.',
+        ],
     ],
 
     // Regeln von Services\Diagnostics. Jede hat einen Titel und einen oder mehrere Texte.
@@ -244,6 +260,7 @@ return [
             'attach_failed' => 'Die JVM hat den Befehl der Bridge abgelehnt.',
             'attach_timeout' => 'Die JVM hat der Bridge nicht rechtzeitig geantwortet.',
             'output_too_large' => 'Die Antwort der JVM ist größer, als die Bridge erlaubt.',
+            'parse_failed' => 'Die JVM hat in einer Form geantwortet, die die Bridge nicht kennt. Ist die Java-Version neuer als die Bridge?',
             'profile_running' => 'Für diesen Server läuft schon eine Lag-Analyse.',
             'too_many_profiles' => 'Auf dieser Node laufen gerade zu viele Lag-Analysen (höchstens :limit), versuche es gleich noch einmal.',
             'profile_not_found' => 'Diese Lag-Analyse kennt die Bridge nicht mehr, sie hebt Ergebnisse 15 Minuten auf.',

@@ -24,7 +24,7 @@ class ContractTest extends TestCase
         return [
             'node status' => ['GET', '/api/v1/status', [], 'node-status.json', 200],
             'server status' => ['GET', "$server/status", [], 'status.json', 200],
-            'vm' => ['GET', "$server/vm", [], 'vm-without-flags.json', 200],
+            'vm' => ['GET', "$server/vm", [], 'vm.json', 200],
             'metrics' => ['GET', "$server/metrics", [], 'metrics.json', 200],
             'live metrics' => ['GET', "$server/metrics", ['live' => '1'], 'metrics-live.json', 200],
             'threads' => ['GET', "$server/threads", [], 'threads.json', 200],
@@ -51,6 +51,33 @@ class ContractTest extends TestCase
         }
     }
 
+    public function test_fake_bridge_plays_older_milestones(): void
+    {
+        $server = '/api/v1/servers/'.self::UUID;
+
+        $this->assertSame(FakeBridge::ALL, FakeBridge::milestone(true));
+        $this->assertSame(FakeBridge::ALL, FakeBridge::milestone('true'));
+        $this->assertSame(1, FakeBridge::milestone('m1'));
+        $this->assertSame(2, FakeBridge::milestone('M2'));
+
+        // Milestone 1: status, vm, metrics only.
+        $this->assertSame(['node-status-m1.json', 200], FakeBridge::route('GET', '/api/v1/status', [], 1));
+        $this->assertSame(['vm-without-flags.json', 200], FakeBridge::route('GET', "$server/vm", [], 1));
+        $this->assertSame(['metrics.json', 200], FakeBridge::route('GET', "$server/metrics", ['live' => '1'], 1));
+        $this->assertSame(['error-not-implemented.json', 501], FakeBridge::route('GET', "$server/threads", [], 1));
+        $this->assertSame(['error-not-implemented.json', 501], FakeBridge::route('POST', "$server/profiles", [], 1));
+
+        // Milestone 2: attach, but no profiles.
+        $this->assertSame(['node-status-m2.json', 200], FakeBridge::route('GET', '/api/v1/status', [], 2));
+        $this->assertSame(['metrics-live.json', 200], FakeBridge::route('GET', "$server/metrics", ['live' => '1'], 2));
+        $this->assertSame(['histogram.json', 200], FakeBridge::route('GET', "$server/histogram", [], 2));
+        $this->assertSame(['error-not-implemented.json', 501], FakeBridge::route('GET', "$server/profiles/c0f3e1a2b4d59687", [], 2));
+
+        foreach (['node-status-m1.json', 'node-status-m2.json'] as $file) {
+            $this->assertFileExists(self::fakeBridgeDir().'/'.$file);
+        }
+    }
+
     public function test_every_error_code_has_a_text_in_both_languages(): void
     {
         $codes = [];
@@ -59,8 +86,8 @@ class ContractTest extends TestCase
             $codes[] = json_decode((string) file_get_contents($file), true, flags: JSON_THROW_ON_ERROR)['error'];
         }
 
-        // 20 codes in the contract, one example each.
-        $this->assertCount(20, $codes);
+        // 21 codes in the contract (20f2692), one example each.
+        $this->assertCount(21, $codes);
 
         foreach (['en', 'de'] as $locale) {
             $texts = self::strings($locale)['errors']['bridge'];

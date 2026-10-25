@@ -7,7 +7,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Support\MetricsHistory;
 
 /**
  * Hints on the JVM of a server from /vm and /metrics of the bridge (docs/API.md, contract of wing
- * commit 30d9143). Plain PHP apart from trans(), so it is tested without Laravel (tests/Unit).
+ * commit 20f2692). Plain PHP apart from trans(), so it is tested without Laravel (tests/Unit).
  *
  * Rules (PLAN.md section 3) that need more than /vm and /metrics are not here yet: whether the Java
  * version suits the Minecraft version needs the Minecraft version of the server.
@@ -48,12 +48,13 @@ class Diagnostics
      * @param  array<string, mixed>|null  $vm  answer of GET /vm
      * @param  array<string, mixed>|null  $metrics  answer of GET /metrics
      * @param  list<Sample>  $history  samples of the last minutes, see MetricsHistory
+     * @param  array<string, mixed>|null  $liveMetaspace  live_heap.metaspace of GET /metrics?live=1, for a JVM that has not collected garbage yet
      * @return list<Finding>
      */
-    public function run(?array $vm, ?array $metrics, array $history = []): array
+    public function run(?array $vm, ?array $metrics, array $history = [], ?array $liveMetaspace = null): array
     {
         $findings = array_values(array_filter([
-            $vm !== null ? $this->xmxNearLimit($vm) : null,
+            $vm !== null ? $this->xmxNearLimit($vm, $liveMetaspace) : null,
             $metrics !== null ? $this->oldGenerationFull($metrics) : null,
             $this->highGcShare($history),
             $vm !== null ? $this->serialGc($vm) : null,
@@ -124,9 +125,10 @@ class Diagnostics
      * kernel kills the container (OOM) instead of the JVM collecting garbage.
      *
      * @param  array<string, mixed>  $vm
+     * @param  array<string, mixed>|null  $liveMetaspace  live_heap.metaspace, see run()
      * @return Finding|null
      */
-    public function xmxNearLimit(array $vm): ?array
+    public function xmxNearLimit(array $vm, ?array $liveMetaspace = null): ?array
     {
         $limit = $vm['container']['memory_limit_bytes'] ?? null;
         $heap = $this->maxHeap($vm);
@@ -136,6 +138,12 @@ class Diagnostics
         }
 
         $metaspace = (int) max($vm['metaspace']['committed_bytes'] ?? 0, $vm['metaspace']['used_bytes'] ?? 0);
+
+        // hsperfdata reports 0 until the first GC, the live value is right from the start.
+        if ($metaspace === 0 && $liveMetaspace !== null) {
+            $metaspace = (int) max($liveMetaspace['committed_bytes'] ?? 0, $liveMetaspace['used_bytes'] ?? 0);
+        }
+
         $total = $heap + $metaspace + self::OVERHEAD_BYTES;
 
         if ($total <= $limit) {

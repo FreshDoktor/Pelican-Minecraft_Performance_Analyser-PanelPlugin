@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The rules against the example answers of the bridge (resources/fake-bridge, wing commit 06db32d), which
+ * The rules against the example answers of the bridge (resources/fake-bridge, wing commit 20f2692), which
  * come from the test server: Java 25, Serial GC chosen for 1 CPU, -Xmx1907M in a container of 2.14 GiB.
  */
 class DiagnosticsTest extends TestCase
@@ -91,6 +91,33 @@ class DiagnosticsTest extends TestCase
         $this->assertStringContainsString('"limit":"2.14 GiB"', $finding['body']);
         // (2299579597 - 116064256 - 314572800) / 1 MiB = 1782 MiB
         $this->assertStringContainsString('"suggested":"1782M"', $finding['body']);
+    }
+
+    public function test_before_the_first_gc_the_live_metaspace_counts(): void
+    {
+        // hsperfdata says 0 until the first GC.
+        $vm = self::example('vm-without-flags');
+        $vm['metaspace'] = ['used_bytes' => 0, 'committed_bytes' => 0, 'max_bytes' => 1207959552, 'source' => 'after_gc'];
+
+        $live = self::example('metrics-live')['live_heap']['metaspace'];
+        $this->assertSame('live', $live['source']);
+
+        $without = (new Diagnostics)->xmxNearLimit($vm);
+        $with = (new Diagnostics)->xmxNearLimit($vm, $live);
+
+        // 1907 MiB + 0 + 300 MiB is above the limit anyway, but only the live value gives the right total.
+        $this->assertStringContainsString('"metaspace":"0 KiB"', $without['body'] ?? '');
+        $this->assertStringContainsString('"metaspace":"111 MiB"', $with['body'] ?? '');
+    }
+
+    public function test_the_starting_jvm_of_the_example_still_gets_its_findings(): void
+    {
+        // vm-without-flags.json is a JVM of 12 s without VM.flags (attach_unavailable, jvm_starting).
+        $vm = self::example('vm-without-flags');
+        $this->assertNull($vm['flags']);
+        $this->assertSame('jvm_starting', $vm['attach']['reason']);
+
+        $this->assertSame(['xmx_near_limit', 'serial_gc'], self::rules((new Diagnostics)->run($vm, self::example('metrics'))));
     }
 
     public function test_xmx_within_the_limit_is_fine(): void
