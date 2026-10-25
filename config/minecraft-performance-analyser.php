@@ -15,6 +15,9 @@ return [
     // Finished lag analyses kept per server on the panel's local disk, for downloading and comparing.
     'keep_profiles' => 5,
 
+    // Classes of a memory histogram the bridge lists one by one (the largest), the rest only in the total.
+    'histogram_limit' => 2000,
+
     // Largest jar of mods/ or plugins/ (in MB) that is read to tell which mod a frame of a profile belongs to.
     'max_jar_size_mb' => (int) env('MPA_MAX_JAR_SIZE_MB', 64),
 

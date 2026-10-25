@@ -80,6 +80,8 @@ final class ModPackageIndex
         'oshi/',
     ];
 
+    public const PRIMITIVES = ['boolean', 'byte', 'char', 'short', 'int', 'long', 'float', 'double'];
+
     /** Method name of a mixin handler: <type>$<hash>$<modid>$<name>, e.g. handler$zza000$sodium$onRender. */
     public const MIXIN_PATTERN = '/^(?:handler|redirect|modify[A-Za-z]*|localvar|wrapOperation|wrapWithCondition|wrapMethod|constant|args|inject)\$[0-9a-z]+\$([A-Za-z0-9_.-]+)\$/';
 
@@ -165,6 +167,42 @@ final class ModPackageIndex
             return $this->modIds[strtolower($matches[1])] ?? $this->ownerForUnknownModId($matches[1]);
         }
 
+        return $this->ownerOfClassPath($class);
+    }
+
+    /**
+     * Owner key of a class as the JVM prints it in a histogram or thread dump: with dots
+     * (net.minecraft.world.level.block.state.BlockState, java.lang.Thread$State) or slashes. Primitive
+     * types (the element type of [B is byte) belong to the JVM.
+     */
+    public function ownerOfClass(string $class): string
+    {
+        if (in_array($class, self::PRIMITIVES, true)) {
+            return self::JVM;
+        }
+
+        // Hidden classes keep a slash before their address: Foo$$Lambda/0x0000000010f1aa00.
+        $path = str_replace('.', '/', $class);
+
+        return str_contains($path, '/') ? $this->ownerOfClassPath($path) : self::OTHER;
+    }
+
+    /**
+     * A frame of a thread dump (net.minecraft.server.MinecraftServer.tickServer, with dots) in the form of
+     * the profiles (net/minecraft/server/MinecraftServer.tickServer).
+     */
+    public static function frameFromDotted(string $method): string
+    {
+        $dot = strrpos($method, '.');
+
+        return $dot === false ? $method : str_replace('.', '/', substr($method, 0, $dot)).substr($method, $dot);
+    }
+
+    /**
+     * @param  string  $class  with slashes
+     */
+    protected function ownerOfClassPath(string $class): string
+    {
         foreach (self::FIXED as $prefix => $key) {
             if (str_starts_with($class, $prefix)) {
                 return $key;

@@ -12,6 +12,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Services\PackageIndexService;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\ProfileAnalyzer;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\ProfileStore;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\OwnerLabel;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -269,10 +270,7 @@ class LagAnalysis extends Component
      */
     public function ownerName(array $owner): string
     {
-        return match ($owner['kind']) {
-            ModPackageIndex::MINECRAFT, ModPackageIndex::LOADER, ModPackageIndex::JVM, ModPackageIndex::LIBRARIES, ModPackageIndex::OTHER => $this->trans('lag.owners.'.$owner['kind']),
-            default => $owner['name'],
-        };
+        return OwnerLabel::name($owner);
     }
 
     public function formatMs(int|float|null $ms): string
