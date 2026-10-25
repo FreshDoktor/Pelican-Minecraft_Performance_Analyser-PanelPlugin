@@ -18,6 +18,9 @@ class BridgeException extends Exception
     /** No connection: no bridge on the node, a wrong address or a firewall in between. */
     public const UNREACHABLE = 'unreachable';
 
+    /** Connected, but the bridge didn't answer within the panel's timeout. */
+    public const TIMEOUT = 'timeout';
+
     /** The bridge refused the token of the node (same code as the bridge's own). */
     public const UNAUTHORIZED = 'unauthorized';
 

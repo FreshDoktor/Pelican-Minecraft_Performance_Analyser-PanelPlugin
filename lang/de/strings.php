@@ -292,6 +292,7 @@ return [
 
     'errors' => [
         'unreachable' => 'Die MPA Bridge der Node ist unter :url nicht erreichbar. Ist sie installiert und gestartet, und lässt die Firewall das Panel durch?',
+        'timeout' => 'Die MPA Bridge unter :url hat nicht rechtzeitig geantwortet. Bei einem großen Heap kann ein Histogramm lange dauern, versuche es erneut, wenn der Server weniger zu tun hat.',
         'wrong_node' => 'Unter :url antwortet etwas anderes als die MPA Bridge dieser Node. Prüfe die Bridge-Adresse der Node im Adminbereich.',
         'invalid_response' => 'Die MPA Bridge hat eine Antwort geschickt, die das Plugin nicht versteht. Passen die Versionen von Plugin und Bridge zusammen?',
         'bridge_error' => 'Fehler in der MPA Bridge (HTTP :status), siehe ihr Log auf der Node (journalctl -u mpa-bridge).',

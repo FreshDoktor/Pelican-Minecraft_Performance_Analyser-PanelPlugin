@@ -292,6 +292,11 @@ class BridgeClient
         try {
             $response = $this->http($node, $baseUrl, $timeout)->send($method, $path, $options);
         } catch (ConnectionException $exception) {
+            // cURL error 28: connected, but no answer in time. The bridge is there, it is just slow (a long heap walk).
+            if (str_contains($exception->getMessage(), 'cURL error 28') && !str_contains($exception->getMessage(), 'Connection timed out')) {
+                throw new BridgeException(BridgeException::TIMEOUT, $this->trans('errors.timeout', ['url' => $baseUrl]), previous: $exception);
+            }
+
             throw new BridgeException(BridgeException::UNREACHABLE, $this->trans('errors.unreachable', ['url' => $baseUrl]), previous: $exception);
         }
 
