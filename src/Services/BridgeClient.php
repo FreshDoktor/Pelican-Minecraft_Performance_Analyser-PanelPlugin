@@ -122,6 +122,68 @@ class BridgeClient
     }
 
     /**
+     * POST /profiles: start a profile (async-profiler, milestone 3 of the bridge). The answer is the
+     * profile object with state running.
+     *
+     * @param  string  $mode  wall (tick analysis), cpu or alloc
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function startProfile(Server $server, int $seconds, string $mode = 'wall'): array
+    {
+        return $this->post($server, 'profiles', ['seconds' => $seconds, 'mode' => $mode]);
+    }
+
+    /**
+     * GET /profiles: the profiles the bridge still knows for this server, newest first, without results.
+     *
+     * @return list<array<string, mixed>>
+     *
+     * @throws BridgeException
+     */
+    public function profiles(Server $server): array
+    {
+        $profiles = $this->get($server, 'profiles')['profiles'] ?? [];
+
+        return is_array($profiles) ? array_values(array_filter($profiles, 'is_array')) : [];
+    }
+
+    /**
+     * GET /profiles/{id}: state of a profile, with the result once it is done.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function profile(Server $server, string $id): array
+    {
+        return $this->get($server, 'profiles/'.self::profileId($id));
+    }
+
+    /**
+     * DELETE /profiles/{id}: stop a running profile, or discard a finished one on the bridge.
+     *
+     * @throws BridgeException
+     */
+    public function deleteProfile(Server $server, string $id): void
+    {
+        $this->delete($server, 'profiles/'.self::profileId($id));
+    }
+
+    /**
+     * Profile ids are 16 lowercase hex characters, nothing else goes into the path.
+     */
+    public static function profileId(string $id): string
+    {
+        if (!preg_match('/^[0-9a-f]{16}$/', $id)) {
+            throw new BridgeException('invalid_request', trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.errors.invalid_response'));
+        }
+
+        return $id;
+    }
+
+    /**
      * GET an endpoint of a server, e.g. get($server, 'status') for /api/v1/servers/<uuid>/status.
      *
      * @param  array<string, scalar>  $query
@@ -271,12 +333,24 @@ class BridgeClient
      */
     protected function toException(Response $response): BridgeException
     {
-        $status = $response->status();
         $data = $response->json();
 
-        $code = is_array($data) && is_string($data['error'] ?? null) && $data['error'] !== '' ? $data['error'] : null;
-        $message = is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '';
-        $details = is_array($data) && is_array($data['details'] ?? null) ? $data['details'] : [];
+        return $this->exceptionFromError(is_array($data) ? $data : [], $response->status());
+    }
+
+    /**
+     * An error object of the bridge as exception: the body of an error answer, or error of a failed
+     * profile. Codes the plugin knows get a translated message (strings.errors.bridge.<code>), others keep
+     * the English message of the bridge. The code decides, never the HTTP status: 404 is not_found or
+     * server_not_found, 401 is unauthorized, 403 ip_not_allowed.
+     *
+     * @param  array<string, mixed>  $error  {"error": "<code>", "message": "…", "details": {…}|null}
+     */
+    public function exceptionFromError(array $error, ?int $status = null): BridgeException
+    {
+        $code = is_string($error['error'] ?? null) && $error['error'] !== '' ? $error['error'] : null;
+        $message = is_string($error['message'] ?? null) ? $error['message'] : '';
+        $details = is_array($error['details'] ?? null) ? $error['details'] : [];
 
         // Without an error body, e.g. from a proxy in between that still passed the User-Agent on.
         $code ??= match ($status) {
@@ -294,7 +368,7 @@ class BridgeClient
                 $message .= ' '.(Lang::has($reasonKey) ? trans($reasonKey) : trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.errors.attach_reasons.unknown'));
             }
         } elseif ($message === '') {
-            $message = $this->trans('errors.bridge_error', ['status' => $status]);
+            $message = $this->trans('errors.bridge_error', ['status' => $status ?? 0]);
         }
 
         return new BridgeException($code, $message, $status, details: $details);

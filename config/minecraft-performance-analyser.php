@@ -12,6 +12,12 @@ return [
     'timeout' => 10,
     'connect_timeout' => 3,
 
+    // Finished lag analyses kept per server on the panel's local disk, for downloading and comparing.
+    'keep_profiles' => 5,
+
+    // Largest jar of mods/ or plugins/ (in MB) that is read to tell which mod a frame of a profile belongs to.
+    'max_jar_size_mb' => (int) env('MPA_MAX_JAR_SIZE_MB', 64),
+
     // Whether the certificate of a bridge reached over https is checked. Bridges reached over http have none.
     'verify_tls' => (bool) env('MPA_BRIDGE_VERIFY_TLS', true),
 
