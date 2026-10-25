@@ -39,7 +39,7 @@ class ProfileAnalyzerTest extends TestCase
 
         $this->assertSame(1, $analysis['gc']['count']);
         $this->assertSame([['kind' => 'young', 'start_offset_ms' => 4183.211, 'duration_ms' => 20.052]], $analysis['gc']['pauses']);
-        $this->assertSame(0.412, $analysis['cpu_percent']);
+        $this->assertSame(0.4, $analysis['cpu_percent']);
     }
 
     public function test_no_samples_is_reported_as_such(): void

@@ -25,8 +25,8 @@ use Illuminate\Support\Facades\Lang;
  * right node. Unlike Wings the bridge has its own address per node (see NodeBridge), and TLS is only
  * checked when that address is https.
  *
- * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 20f2692
- * (milestone 2 of the bridge). Unknown fields are ignored, as the contract asks.
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 49f32b3
+ * (milestone 3 of the bridge). Unknown fields are ignored, as the contract asks.
  */
 class BridgeClient
 {
@@ -35,7 +35,7 @@ class BridgeClient
     public const API_VERSION = 1;
 
     /** Commit of docs/API.md in the bridge repo this client was written against. */
-    public const CONTRACT = '20f2692';
+    public const CONTRACT = '49f32b3';
 
     public const DEFAULT_PORT = 8090;
 

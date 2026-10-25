@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The rules against the example answers of the bridge (resources/fake-bridge, wing commit 20f2692), which
+ * The rules against the example answers of the bridge (resources/fake-bridge, wing commit 49f32b3), which
  * come from the test server: Java 25, Serial GC chosen for 1 CPU, -Xmx1907M in a container of 2.14 GiB.
  */
 class DiagnosticsTest extends TestCase

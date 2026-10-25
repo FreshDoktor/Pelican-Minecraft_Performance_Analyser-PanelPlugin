@@ -7,7 +7,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Support\MetricsHistory;
 
 /**
  * Hints on the JVM of a server from /vm and /metrics of the bridge (docs/API.md, contract of wing
- * commit 20f2692). Plain PHP apart from trans(), so it is tested without Laravel (tests/Unit).
+ * commit 49f32b3). Plain PHP apart from trans(), so it is tested without Laravel (tests/Unit).
  *
  * Rules (PLAN.md section 3) that need more than /vm and /metrics are not here yet: whether the Java
  * version suits the Minecraft version needs the Minecraft version of the server.

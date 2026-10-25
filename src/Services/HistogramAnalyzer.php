@@ -3,7 +3,7 @@
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Services;
 
 /**
- * Groups a class histogram of the bridge (GET /histogram, docs/API.md at wing commit 20f2692) by mod: every
+ * Groups a class histogram of the bridge (GET /histogram, docs/API.md at wing commit 49f32b3) by mod: every
  * class goes to the owner of its element type, so [Lnet.minecraft…StateHolder; counts for Minecraft and
  * [B (byte arrays) for the JVM. Classes beyond the bridge's limit only come as a sum (omitted).
  *

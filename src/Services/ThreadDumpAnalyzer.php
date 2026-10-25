@@ -3,7 +3,7 @@
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Services;
 
 /**
- * Prepares a thread dump of the bridge (GET /threads, docs/API.md at wing commit 20f2692) for the tab
+ * Prepares a thread dump of the bridge (GET /threads, docs/API.md at wing commit 49f32b3) for the tab
  * Threads: the threads by CPU time with their state (the State line, never the header), the mod a
  * thread works for (its deepest frame outside the JVM), which thread holds the lock another one waits
  * for, and the deadlocks.

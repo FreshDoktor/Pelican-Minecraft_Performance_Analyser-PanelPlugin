@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Storage;
  * node status (node-status-m1.json, node-status-m2.json), and 501 not_implemented for what it can't do
  * yet (m1: threads, histogram, profiles; m2: profiles).
  *
- * The examples are docs/examples of the bridge repo at commit 20f2692 (milestone 2 of the bridge),
+ * The examples are docs/examples of the bridge repo at commit 49f32b3 (milestone 3 of the bridge),
  * copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
  * the same checks as real ones.
  */
@@ -100,7 +100,8 @@ class FakeBridge
             $endpoint === 'threads' && $method === 'GET' => ['threads.json', 200],
             $endpoint === 'histogram' && $method === 'GET' => ['histogram.json', 200],
             $endpoint === 'profiles' && $method === 'POST' => ['profile-created.json', 202],
-            $endpoint === 'profiles' && $method === 'GET' => ['profiles.json', 200],
+            // No profile running yet: the tab starts empty, a profile only runs once someone starts one.
+            $endpoint === 'profiles' && $method === 'GET' => ['profiles-empty.json', 200],
             $isProfile && $method === 'GET' => ['profile-done.json', 200],
             $isProfile && $method === 'DELETE' => [null, 204],
             $isProfile || in_array($endpoint, ['status', 'vm', 'metrics', 'threads', 'histogram'], true) => ['error-method-not-allowed.json', 405],

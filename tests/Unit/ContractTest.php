@@ -30,7 +30,7 @@ class ContractTest extends TestCase
             'threads' => ['GET', "$server/threads", [], 'threads.json', 200],
             'histogram' => ['GET', "$server/histogram", ['limit' => '100'], 'histogram.json', 200],
             'start profile' => ['POST', "$server/profiles", [], 'profile-created.json', 202],
-            'profiles' => ['GET', "$server/profiles", [], 'profiles.json', 200],
+            'profiles' => ['GET', "$server/profiles", [], 'profiles-empty.json', 200],
             'profile' => ['GET', "$server/profiles/c0f3e1a2b4d59687", [], 'profile-done.json', 200],
             'delete profile' => ['DELETE', "$server/profiles/c0f3e1a2b4d59687", [], null, 204],
             'wrong method' => ['POST', "$server/vm", [], 'error-method-not-allowed.json', 405],

@@ -8,7 +8,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Services\ThreadDumpAnalyzer;
 use PHPUnit\Framework\TestCase;
 
 /**
- * histogram.json and threads.json are the contract's examples from the vanilla test server (wing 20f2692).
+ * histogram.json and threads.json are the contract's examples from the vanilla test server (wing 49f32b3).
  * Mods are added by hand where needed, there are no fixtures of a modded server yet.
  */
 class HistogramAndThreadsTest extends TestCase
