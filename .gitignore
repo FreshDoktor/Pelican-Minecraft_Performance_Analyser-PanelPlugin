@@ -1,0 +1,5 @@
+# Packaged plugin builds
+*.zip
+
+# Local planning notes
+PLAN.md
