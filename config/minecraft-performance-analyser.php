@@ -26,8 +26,12 @@ return [
 
     // Development only: answer every request with the examples in resources/fake-bridge instead of asking
     // the bridge, so the page can be looked at before a bridge runs on the node. true plays a bridge with
-    // every feature, m1 or m2 a bridge of that milestone (see FakeBridge).
+    // every feature, m1, m2 or m3 an older bridge (see FakeBridge).
     'fake_bridge' => env('MPA_FAKE_BRIDGE', false),
+
+    // Development only, with fake_bridge: the state GET /ticks plays for the widget under the console,
+    // empty for normal values, else overloaded, paused, starting, suspended, unsupported or jvm-starting.
+    'fake_ticks' => env('MPA_FAKE_TICKS'),
 
     // Seconds between two readings of the live heap (GET /metrics?live=1, two attach commands, one with a
     // short safepoint) while the overview is open. 0 turns them off.

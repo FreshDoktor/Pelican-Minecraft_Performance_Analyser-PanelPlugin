@@ -27,12 +27,16 @@ final class Capabilities
     /** The live heap in the overview (GET /metrics?live=1). */
     public const LIVE_HEAP = 'live_heap';
 
+    /** TPS and MSPT under the console (GET /ticks, the tick monitor of the bridge). */
+    public const TICKS = 'ticks';
+
     /** Feature of the bridge each action needs (docs/API.md, "Versioning"). Each of them attaches to the JVM. */
     public const FEATURES = [
         self::PROFILE => 'profiles',
         self::HISTOGRAM => 'histogram',
         self::THREADS => 'threads',
         self::LIVE_HEAP => 'live_heap',
+        self::TICKS => 'ticks',
     ];
 
     public const BRIDGE_MISSING = 'bridge_missing';
@@ -101,7 +105,7 @@ final class Capabilities
             return self::NOT_IMPLEMENTED;
         }
 
-        if ($action === self::PROFILE && $this->serverThreadMissing) {
+        if (in_array($action, [self::PROFILE, self::TICKS], true) && $this->serverThreadMissing) {
             return self::NO_SERVER_THREAD;
         }
 
@@ -158,6 +162,16 @@ final class Capabilities
     public function serverThreadMissing(): bool
     {
         return $this->serverThreadMissing;
+    }
+
+    /**
+     * When the JVM that runs now started (Unix ms), null without one or without hsperfdata.
+     */
+    public function jvmStartedAt(): ?int
+    {
+        $startedAt = $this->status['java']['started_at'] ?? null;
+
+        return is_int($startedAt) ? $startedAt : null;
     }
 
     /**

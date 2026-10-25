@@ -14,46 +14,54 @@ use Illuminate\Support\Facades\Storage;
  * before a bridge runs on the node. Only requests of the BridgeClient are faked, through a stub on its
  * own request, the panel's other HTTP requests (Wings, Modrinth, …) go out as usual.
  *
- * MPA_FAKE_BRIDGE=true plays a bridge with every feature. m1 or m2 play a bridge of that milestone: its
- * node status (node-status-m1.json, node-status-m2.json), its features in the server status, and 501
- * not_implemented for what it can't do yet (m1: threads, histogram, profiles; m2: profiles).
+ * MPA_FAKE_BRIDGE=true plays a bridge with every feature. m1, m2 or m3 play an older bridge: its node
+ * status (node-status-m1.json …), its features in the server status, and 501 not_implemented for what it
+ * can't do yet (m1: threads, histogram, profiles, ticks; m2: profiles, ticks; m3: ticks, a bridge 0.1.0).
  *
- * The examples are docs/examples of the bridge repo at commit 49f32b3 (milestone 3 of the bridge),
- * copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
+ * GET /ticks answers ticks.json, or the example MPA_FAKE_TICKS names (overloaded, paused, starting,
+ * suspended, unsupported, jvm-starting), to look at the other states of the widget under the console.
+ *
+ * The examples are docs/examples of the bridge repo at commit 67a8f92 (bridge 0.2.0, with the tick
+ * monitor), copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
  * the same checks as real ones.
  */
 class FakeBridge
 {
     /** bridge_version of node-status.json. */
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.2.0';
 
-    /** Milestone of the bridge with every feature the plugin uses. */
-    public const ALL = 3;
+    /** Stands for the bridge with every feature the plugin uses (0.2.0, profiles and the tick monitor). */
+    public const ALL = 4;
 
-    /** features of the older milestones, as in node-status-m1.json and node-status-m2.json. */
+    /** features of the older bridges, as in node-status-m1.json, -m2.json and -m3.json. */
     public const FEATURES = [
         1 => ['status', 'vm', 'metrics'],
         2 => ['status', 'vm', 'metrics', 'threads', 'histogram', 'vm_flags', 'live_heap'],
+        3 => ['status', 'vm', 'metrics', 'threads', 'histogram', 'vm_flags', 'live_heap', 'profiles'],
     ];
 
+    /** Examples of GET /ticks besides ticks.json, by the value of MPA_FAKE_TICKS. */
+    public const TICKS_EXAMPLES = ['overloaded', 'paused', 'starting', 'suspended', 'unsupported', 'jvm-starting'];
+
     /**
-     * Milestone of the bridge to play, from the config value: true (or anything else) all, m1 / m2 that one.
+     * Milestone of the bridge to play, from the config value: true (or anything else) all, m1 / m2 / m3 that one.
      */
     public static function milestone(mixed $setting): int
     {
         return match (is_string($setting) ? strtolower(trim($setting)) : $setting) {
             'm1', '1' => 1,
             'm2', '2' => 2,
+            'm3', '3' => 3,
             default => self::ALL,
         };
     }
 
-    public function respond(Request $request, Node $node, int $milestone = self::ALL): PromiseInterface
+    public function respond(Request $request, Node $node, int $milestone = self::ALL, ?string $ticks = null): PromiseInterface
     {
         $url = $request->url();
         parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
 
-        [$file, $status] = static::route($request->method(), (string) parse_url($url, PHP_URL_PATH), $query, $milestone);
+        [$file, $status] = static::route($request->method(), (string) parse_url($url, PHP_URL_PATH), $query, $milestone, $ticks);
 
         $headers = [
             'Content-Type' => 'application/json; charset=utf-8',
@@ -85,9 +93,10 @@ class FakeBridge
      * Example file and HTTP status for a request, like a bridge of that milestone would answer it.
      *
      * @param  array<mixed>  $query
+     * @param  string|null  $ticks  example of GET /ticks, one of TICKS_EXAMPLES, else ticks.json
      * @return array{0: string|null, 1: int} file name (null for an empty body) and status
      */
-    public static function route(string $method, string $path, array $query = [], int $milestone = self::ALL): array
+    public static function route(string $method, string $path, array $query = [], int $milestone = self::ALL, ?string $ticks = null): array
     {
         $method = strtoupper($method);
         $path = '/'.trim($path, '/');
@@ -97,11 +106,7 @@ class FakeBridge
                 return ['error-method-not-allowed.json', 405];
             }
 
-            return [match ($milestone) {
-                1 => 'node-status-m1.json',
-                2 => 'node-status-m2.json',
-                default => 'node-status.json',
-            }, 200];
+            return [isset(self::FEATURES[$milestone]) ? "node-status-m$milestone.json" : 'node-status.json', 200];
         }
 
         if (!preg_match('#^/api/v1/servers/[0-9a-fA-F-]{36}/(.+)$#', $path, $matches)) {
@@ -112,9 +117,11 @@ class FakeBridge
         $isProfile = (bool) preg_match('#^profiles(/[0-9a-f]{16})?$#', $endpoint);
         $notImplemented = ['error-not-implemented.json', 501];
 
-        if (($milestone < 3 && $isProfile) || ($milestone < 2 && in_array($endpoint, ['threads', 'histogram'], true))) {
+        if (($milestone < 4 && $endpoint === 'ticks') || ($milestone < 3 && $isProfile) || ($milestone < 2 && in_array($endpoint, ['threads', 'histogram'], true))) {
             return $notImplemented;
         }
+
+        $ticks = is_string($ticks) ? strtolower(trim($ticks)) : null;
 
         return match (true) {
             $endpoint === 'status' && $method === 'GET' => ['status.json', 200],
@@ -128,7 +135,8 @@ class FakeBridge
             $endpoint === 'profiles' && $method === 'GET' => ['profiles-empty.json', 200],
             $isProfile && $method === 'GET' => ['profile-done.json', 200],
             $isProfile && $method === 'DELETE' => [null, 204],
-            $isProfile || in_array($endpoint, ['status', 'vm', 'metrics', 'threads', 'histogram'], true) => ['error-method-not-allowed.json', 405],
+            $endpoint === 'ticks' && $method === 'GET' => [in_array($ticks, self::TICKS_EXAMPLES, true) ? "ticks-$ticks.json" : 'ticks.json', 200],
+            $isProfile || in_array($endpoint, ['status', 'vm', 'metrics', 'threads', 'histogram', 'ticks'], true) => ['error-method-not-allowed.json', 405],
             default => ['error-not-found.json', 404],
         };
     }

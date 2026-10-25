@@ -25,8 +25,8 @@ use Illuminate\Support\Facades\Lang;
  * right node. Unlike Wings the bridge has its own address per node (see NodeBridge), and TLS is only
  * checked when that address is https.
  *
- * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 49f32b3
- * (milestone 3 of the bridge). Unknown fields are ignored, as the contract asks.
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 67a8f92
+ * (bridge 0.2.0, with the tick monitor). Unknown fields are ignored, as the contract asks.
  */
 class BridgeClient
 {
@@ -35,7 +35,7 @@ class BridgeClient
     public const API_VERSION = 1;
 
     /** Commit of docs/API.md in the bridge repo this client was written against. */
-    public const CONTRACT = '49f32b3';
+    public const CONTRACT = '67a8f92';
 
     public const DEFAULT_PORT = 8090;
 
@@ -168,6 +168,19 @@ class BridgeClient
     public function deleteProfile(Server $server, string $id): void
     {
         $this->delete($server, 'profiles/'.self::profileId($id));
+    }
+
+    /**
+     * GET /ticks: approximate TPS and MSPT with a history of 10 minutes (feature ticks). The first call
+     * starts the tick monitor of the bridge for this server, it stops by itself a minute after the last call.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function ticks(Server $server): array
+    {
+        return $this->get($server, 'ticks');
     }
 
     /**
@@ -322,7 +335,8 @@ class BridgeClient
             // Only this request is answered by the examples, see FakeBridge. stub() takes a list of callbacks.
             $fake = app(FakeBridge::class);
             $milestone = FakeBridge::milestone(config(MinecraftPerformanceAnalyserPlugin::ID.'.fake_bridge'));
-            $request->stub([fn (Request $request) => $fake->respond($request, $node, $milestone)]);
+            $ticks = config(MinecraftPerformanceAnalyserPlugin::ID.'.fake_ticks');
+            $request->stub([fn (Request $request) => $fake->respond($request, $node, $milestone, is_string($ticks) ? $ticks : null)]);
         }
 
         return $request;

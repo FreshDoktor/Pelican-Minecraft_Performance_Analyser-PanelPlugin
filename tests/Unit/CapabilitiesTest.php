@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
  */
 class CapabilitiesTest extends TestCase
 {
-    protected const ACTIONS = [C::PROFILE, C::HISTOGRAM, C::THREADS, C::LIVE_HEAP];
+    protected const ACTIONS = [C::PROFILE, C::HISTOGRAM, C::THREADS, C::LIVE_HEAP, C::TICKS];
 
     public function test_a_ready_server_can_do_everything(): void
     {
@@ -49,6 +49,12 @@ class CapabilitiesTest extends TestCase
         $this->assertSame(C::NOT_IMPLEMENTED, C::fromStatus($m2)->reason(C::PROFILE));
         $this->assertTrue(C::fromStatus($m2)->available(C::THREADS));
         $this->assertTrue(C::fromStatus($m2)->available(C::HISTOGRAM));
+
+        // A bridge 0.1.0: profiles, but no tick monitor.
+        $m3 = C::fromStatus(self::ready(features: FakeBridge::FEATURES[3]));
+        $this->assertTrue($m3->available(C::PROFILE));
+        $this->assertSame(C::NOT_IMPLEMENTED, $m3->reason(C::TICKS));
+        $this->assertTrue($m3->hidden(C::TICKS));
     }
 
     public function test_a_stopped_or_starting_server_disables(): void
@@ -94,6 +100,7 @@ class CapabilitiesTest extends TestCase
 
         $this->assertSame(C::NO_SERVER_THREAD, $capabilities->reason(C::PROFILE));
         $this->assertTrue($capabilities->hidden(C::PROFILE));
+        $this->assertSame(C::NO_SERVER_THREAD, $capabilities->reason(C::TICKS));
         $this->assertTrue($capabilities->available(C::THREADS));
         $this->assertTrue($capabilities->available(C::HISTOGRAM));
         $this->assertTrue($capabilities->serverThreadMissing());
@@ -111,10 +118,18 @@ class CapabilitiesTest extends TestCase
         $profile = fn (int $startedAt, array $warnings) => ['started_at' => $startedAt, 'result' => ['warnings' => $warnings]];
 
         $this->assertTrue(C::fromStatus($status, lastProfile: $profile($jvmStarted + 60000, [C::SERVER_THREAD_MISSING]))->hidden(C::PROFILE));
+        $this->assertTrue(C::fromStatus($status, lastProfile: $profile($jvmStarted + 60000, [C::SERVER_THREAD_MISSING]))->hidden(C::TICKS));
         // Of an earlier JVM: says nothing, the egg may have changed.
         $this->assertTrue(C::fromStatus($status, lastProfile: $profile($jvmStarted - 60000, [C::SERVER_THREAD_MISSING]))->available(C::PROFILE));
         $this->assertTrue(C::fromStatus($status, lastProfile: $profile($jvmStarted + 60000, ['no_samples']))->available(C::PROFILE));
         $this->assertTrue(C::fromStatus($status, lastProfile: ['started_at' => $jvmStarted + 60000, 'result' => null])->available(C::PROFILE));
+    }
+
+    public function test_the_start_of_the_jvm(): void
+    {
+        $this->assertSame(self::ready()['java']['started_at'], C::fromStatus(self::ready())->jvmStartedAt());
+        $this->assertNull(C::fromStatus(DiagnosticsTest::example('status-not-running'))->jvmStartedAt());
+        $this->assertNull(C::bridgeFailed(true)->jvmStartedAt());
     }
 
     public function test_every_reason_has_a_text_in_both_languages(): void

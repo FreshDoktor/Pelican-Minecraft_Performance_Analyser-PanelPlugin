@@ -290,6 +290,30 @@ return [
         'test_failed' => 'Die Bridge antwortet nicht',
     ],
 
+    // TPS und MSPT unter der Konsole (Filament/Server/Widgets), vom Tick-Monitor der Bridge.
+    'ticks' => [
+        'tps' => 'TPS',
+        'mspt' => 'MSPT',
+        'overloaded' => 'überlastet',
+        'tps_sampling' => 'Ungefähr. Die Tick-Schleife ist zu :load der Zeit beschäftigt, der Server schafft 20 TPS.',
+        'tps_counting' => 'Ticks gezählt: Der Server schafft keine 20 TPS.',
+        'tps_counting_ok' => 'Ticks gezählt: Der Server kommt wieder hinterher.',
+        'tps_overloaded' => 'Die Tick-Schleife hat keine Pause mehr, ab den nächsten 5 Sekunden werden die Ticks gezählt.',
+        'mspt_hint' => 'Ungefähre Dauer eines Ticks, gemittelt über 5 Sekunden. Bis 50 ms schafft der Server 20 TPS.',
+        'mspt_catching_up' => 'Der Server kommt wieder hinterher, die Dauer eines Ticks wird gleich wieder gemessen.',
+        'stale' => 'Die letzte Messung ist fehlgeschlagen, das sind die letzten Werte. Neuer Versuch läuft.',
+        'no_server' => 'Kein Server.',
+        'states' => [
+            'starting' => 'Messung startet…',
+            'jvm_starting' => 'Die JVM startet, die Messung beginnt in einer halben Minute.',
+            'paused' => 'Der Server ist pausiert, es ist keiner online.',
+            'suspended' => 'Eine Lag-Analyse läuft, danach geht die Messung weiter.',
+            'unsupported' => 'Noch keine Tick-Schleife gefunden: Die Welt lädt noch, oder die Bridge kennt diese Minecraft-Version nicht.',
+            'no_server_thread' => 'Noch kein Server thread, startet der Server noch?',
+            'error' => 'Messung fehlgeschlagen, neuer Versuch läuft.',
+        ],
+    ],
+
     // Warum eine Aktion gerade nicht geht (Support\Capabilities), steht unter ihrem deaktivierten Knopf.
     'capabilities' => [
         'bridge_missing' => 'Für diesen Node antwortet keine MPA Bridge, siehe Übersicht.',
@@ -333,6 +357,7 @@ return [
             'parse_failed' => 'Die JVM hat in einer Form geantwortet, die die Bridge nicht kennt. Ist die Java-Version neuer als die Bridge?',
             'profile_running' => 'Für diesen Server läuft schon eine Lag-Analyse.',
             'too_many_profiles' => 'Auf dieser Node laufen gerade zu viele Lag-Analysen (höchstens :limit), versuche es gleich noch einmal.',
+            'too_many_tick_monitors' => 'Auf dieser Node werden gerade für zu viele Server TPS gemessen (höchstens :limit), sie erscheinen, sobald die Konsole eines anderen Servers geschlossen ist.',
             'profile_not_found' => 'Diese Lag-Analyse kennt die Bridge nicht mehr, sie hebt Ergebnisse 15 Minuten auf.',
             'insufficient_tmp_space' => 'Das /tmp im Container des Servers ist für den Profiler zu voll (:free_bytes frei, :required_bytes nötig).',
             'not_implemented' => 'Das kann diese MPA Bridge noch nicht, aktualisiere sie.',

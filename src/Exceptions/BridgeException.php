@@ -11,7 +11,7 @@ use Throwable;
  *
  * Codes the plugin sets itself are the constants below. Errors of the bridge keep the code of its
  * answer ({"error": "<code>", "message": "…", "details": …}, e.g. server_not_running), see "Errors" in
- * docs/API.md of the bridge (wing commit 49f32b3).
+ * docs/API.md of the bridge (wing commit 67a8f92).
  */
 class BridgeException extends Exception
 {

@@ -4,8 +4,10 @@ namespace FreshDoktor\MinecraftPerformanceAnalyser\Models;
 
 use App\Models\Node;
 use Carbon\CarbonImmutable;
+use FreshDoktor\MinecraftPerformanceAnalyser\Services\TickMonitor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * The address of the MPA Bridge of a node, set in the admin area on the node's page (see NodeBridgeTab).
@@ -52,6 +54,9 @@ class NodeBridge extends Model
     public static function saveFor(Node $node, ?string $url): void
     {
         $url = static::normalize($url);
+
+        // Another address may be another bridge, the console asks it again for the tick monitor.
+        Cache::forget(TickMonitor::nodeCacheKey($node));
 
         if ($url === null) {
             static::query()->where('node_id', $node->id)->delete();

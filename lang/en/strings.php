@@ -290,6 +290,30 @@ return [
         'test_failed' => 'The bridge does not answer',
     ],
 
+    // TPS and MSPT under the console (Filament/Server/Widgets), from the tick monitor of the bridge.
+    'ticks' => [
+        'tps' => 'TPS',
+        'mspt' => 'MSPT',
+        'overloaded' => 'overloaded',
+        'tps_sampling' => 'Approximate. The tick loop is busy :load of the time, the server keeps up with 20 TPS.',
+        'tps_counting' => 'Ticks counted: the server falls behind 20 TPS.',
+        'tps_counting_ok' => 'Ticks counted: the server keeps up again.',
+        'tps_overloaded' => 'The tick loop has no idle time left, the ticks are counted from the next 5 seconds on.',
+        'mspt_hint' => 'Approximate time of one tick, averaged over 5 seconds. Up to 50 ms the server keeps 20 TPS.',
+        'mspt_catching_up' => 'The server keeps up again, the time of a tick is measured again in a moment.',
+        'stale' => 'The last measuring failed, these are the last values. Trying again.',
+        'no_server' => 'No server.',
+        'states' => [
+            'starting' => 'Measuring starts…',
+            'jvm_starting' => 'The JVM is starting, measuring begins in half a minute.',
+            'paused' => 'The server is paused, nobody is online.',
+            'suspended' => 'A lag analysis is running, measuring goes on after it.',
+            'unsupported' => 'No tick loop found yet: the world is still loading, or the bridge doesn\'t know this Minecraft version.',
+            'no_server_thread' => 'No Server thread yet, is the server still starting?',
+            'error' => 'Measuring failed, trying again.',
+        ],
+    ],
+
     // Why an action can't be done right now (Support\Capabilities), shown below its disabled button.
     'capabilities' => [
         'bridge_missing' => 'No MPA Bridge answers for this node, see the overview.',
@@ -333,6 +357,7 @@ return [
             'parse_failed' => 'The JVM answered in a form the bridge doesn\'t know. Is the Java version newer than the bridge?',
             'profile_running' => 'A lag analysis is running already for this server.',
             'too_many_profiles' => 'Too many lag analyses run on this node right now (at most :limit), try again in a moment.',
+            'too_many_tick_monitors' => 'TPS are measured for too many servers on this node right now (at most :limit), they show once a console of another server is closed.',
             'profile_not_found' => 'This lag analysis is no longer known to the bridge, it keeps results for 15 minutes.',
             'insufficient_tmp_space' => 'The /tmp of the server\'s container is too full for the profiler (:free_bytes free, :required_bytes needed).',
             'not_implemented' => 'This MPA Bridge can\'t do that yet, update it.',

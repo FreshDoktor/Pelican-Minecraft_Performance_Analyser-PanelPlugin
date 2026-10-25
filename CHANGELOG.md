@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-10-25
+
+### Added
+
+- TPS and MSPT under the console, below Pelican's CPU, memory and network charts: approximate ticks per second and milliseconds per tick with the history of the last 10 minutes, updated every 5 seconds while the console is open. Yellow below 18 TPS, red below 15. A paused server, a starting JVM and a running lag analysis show as such instead of numbers. Needs MPA Bridge 0.2.0 (tick monitor) on the node, and only shows for running Java servers the bridge may attach to, not for proxies
+
 ## 0.1.1 - 2026-10-25
 
 ### Changed
