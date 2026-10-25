@@ -8,8 +8,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * profile-done.json and profile-done-no-samples.json are the examples of the contract (vanilla test
- * server, constructed from its thread dump). Profiles with mods and mixins are built by hand, there is
- * no recorded one yet.
+ * server, constructed from its thread dump). The recorded profiles with mods are in tests/fixtures (cut
+ * down to the Server thread, PLAN.md section 8); smaller cases are built by hand.
  */
 class ProfileAnalyzerTest extends TestCase
 {
@@ -129,6 +129,104 @@ class ProfileAnalyzerTest extends TestCase
         $this->assertFalse($analyzer->isIdle(explode(';', self::TICK)));
     }
 
+    public function test_tick_and_idle_methods_of_every_mapping(): void
+    {
+        $analyzer = new ProfileAnalyzer;
+        $classify = fn (string $stack) => $analyzer->classify(explode(';', $stack));
+        $server = 'net/minecraft/server/MinecraftServer.';
+
+        // Fabric (intermediary): BlockableEventLoop is class_1255, waitForTasks is its method.
+        $this->assertSame(['idle', 'intermediary'], $classify('java/lang/Thread.run;'.$server.'method_29741;'.$server.'method_16208;net/minecraft/class_1255.method_18857;net/minecraft/class_1255.method_20813;java/util/concurrent/locks/LockSupport.parkNanos'));
+        $this->assertSame(['tick', 'intermediary'], $classify($server.'method_29741;'.$server.'method_3748;net/minecraft/class_3176.method_3813'));
+        // Forge 1.17 to 1.20 (srg): classes in Mojmap, methods in srg.
+        $this->assertSame(['idle', 'srg'], $classify($server.'m_130011_;'.$server.'m_130012_;net/minecraft/util/thread/BlockableEventLoop.m_18701_;net/minecraft/util/thread/BlockableEventLoop.m_5667_'));
+        $this->assertSame(['tick', 'srg'], $classify($server.'m_130011_;'.$server.'m_5705_;net/minecraft/server/dedicated/DedicatedServer.m_5703_;'.$server.'m_5703_'));
+        // Forge 1.14 to 1.16 (mcp).
+        $this->assertSame(['idle', 'mcp'], $classify($server.'func_240802_v_;'.$server.'func_213202_o;net/minecraft/util/concurrent/ThreadTaskExecutor.func_213161_c'));
+        $this->assertSame(['tick', 'mcp'], $classify($server.'func_240802_v_;'.$server.'func_71217_p'));
+        // Up to 1.13: Thread.sleep right in MinecraftServer.run, not below a tick.
+        $this->assertSame(['idle', 'mcp'], $classify('java/lang/Thread.run;'.$server.'run;java/lang/Thread.sleep;java/lang/Thread.sleepNanos'));
+        $this->assertSame(['tick', 'mcp'], $classify($server.'run;'.$server.'func_71217_p;java/lang/Thread.sleep'));
+        // Obfuscated vanilla before 26.1, or a stack the profiler couldn't walk.
+        $this->assertSame([null, null], $classify($server.'w;'.$server.'a;net/minecraft/aqx.a'));
+        $this->assertSame([null, null], $classify('[unknown_Java];I2C/C2I adapters'));
+    }
+
+    public function test_without_known_tick_methods_the_tick_load_is_unknown(): void
+    {
+        $profile = self::profile([self::serverThread([
+            ['java/lang/Thread.run;net/minecraft/server/MinecraftServer.w;net/minecraft/server/MinecraftServer.y;jdk/internal/misc/Unsafe.park', 60],
+            ['java/lang/Thread.run;net/minecraft/server/MinecraftServer.w;net/minecraft/server/MinecraftServer.a;net/minecraft/aqx.a', 40],
+        ])]);
+
+        $analysis = (new ProfileAnalyzer)->analyze($profile, new ModPackageIndex);
+
+        // The waiting can't be told apart: everything is work, but no tick load is claimed.
+        $this->assertSame(ProfileAnalyzer::STATE_OK, $analysis['state']);
+        $this->assertNull($analysis['server_thread']['mapping']);
+        $this->assertSame(100, $analysis['server_thread']['work']);
+        $this->assertNull($analysis['server_thread']['tick_load_percent']);
+    }
+
+    public function test_fabric_without_players_mostly_waits(): void
+    {
+        $analysis = (new ProfileAnalyzer)->analyze(self::fixture('profile-fabric-idle'), new ModPackageIndex);
+        $server = $analysis['server_thread'];
+
+        $this->assertSame('intermediary', $server['mapping']);
+        $this->assertSame(599, $server['samples']);
+        // 520 samples below method_16208 (waitUntilNextTick): 86.8 % idle.
+        $this->assertSame(520, $server['idle']);
+        $this->assertSame(13.19, $server['tick_load_percent']);
+    }
+
+    public function test_immersive_snow_is_the_lag_of_the_mod(): void
+    {
+        $index = ModPackageIndex::fromJars([
+            'immersivesnow-fabric-1.21-1.0.jar' => ModPackageIndexTest::jar('immersivesnow-fabric-1.21-1.0.jar', [
+                'fabric.mod.json' => '{"id": "immersivesnow", "name": "Immersive Snow", "version": "1.0"}',
+            ], ['straywave/minecraft/immersivesnow/ImmersiveSnowEvents.class']),
+        ]);
+
+        // The mod loads chunks in its world tick and waits for them (getChunkBlocking, then waitForTasks).
+        foreach (['profile-fabric-immersive-snow-serial' => [97.67, 76.71, 81.91], 'profile-fabric-immersive-snow-g1' => [95.67, 70.56, 76.48]] as $fixture => [$load, $self, $inclusive]) {
+            $analysis = (new ProfileAnalyzer)->analyze(self::fixture($fixture), $index);
+            $mod = $analysis['owners'][0];
+
+            $this->assertSame($load, $analysis['server_thread']['tick_load_percent'], $fixture);
+            $this->assertSame('Immersive Snow', $mod['name'], $fixture);
+            $this->assertSame($self, $mod['self_percent'], $fixture);
+            $this->assertSame($inclusive, $mod['inclusive_percent'], $fixture);
+            // The waiting goes to the mod's deepest frame, not to Minecraft's waitForTasks.
+            $this->assertSame('straywave/minecraft/immersivesnow/Utils.setBlock', $analysis['top_methods'][0]['frame'], $fixture);
+        }
+    }
+
+    public function test_waiting_inside_a_tick_without_a_mod_stays_minecraft(): void
+    {
+        $wait = ';net/minecraft/server/level/ServerChunkCache.getChunk;net/minecraft/util/thread/BlockableEventLoop.managedBlock;net/minecraft/util/thread/BlockableEventLoop.waitForTasks;jdk/internal/misc/Unsafe.park';
+        $profile = self::profile([self::serverThread([
+            [self::TICK.';com/simibubi/create/content/kinetics/belt/BeltBlockEntity.tick'.$wait, 30],
+            [self::TICK.';net/minecraft/world/entity/Entity.tick'.$wait, 10],
+        ])]);
+
+        $owners = array_column((new ProfileAnalyzer)->analyze($profile, ModPackageIndexTest::index())['owners'], 'self', 'key');
+
+        $this->assertSame(30, $owners['jar:create-1.21.1-6.0.0.jar']);
+        $this->assertSame(10, $owners[ModPackageIndex::MINECRAFT]);
+    }
+
+    public function test_the_forge_1_12_modpack_is_overloaded(): void
+    {
+        $analysis = (new ProfileAnalyzer)->analyze(self::fixture('profile-forge-1.12-modpack'), new ModPackageIndex);
+        $server = $analysis['server_thread'];
+
+        $this->assertSame('mcp', $server['mapping']);
+        // Only 17 of 1196 samples in Thread.sleep of MinecraftServer.run: it can't keep 20 TPS.
+        $this->assertSame(17, $server['idle']);
+        $this->assertSame(98.58, $server['tick_load_percent']);
+    }
+
     public function test_cpu_profiles_have_no_tick_load(): void
     {
         $profile = self::profile([self::serverThread([[self::TICK.';net/minecraft/world/entity/Entity.tick', 10]])], 'cpu', 10);
@@ -138,6 +236,16 @@ class ProfileAnalyzerTest extends TestCase
         // Only CPU time is sampled, so the share of time the thread worked can't be told.
         $this->assertNull($analysis['server_thread']['tick_load_percent']);
         $this->assertSame(100.0, $analysis['server_thread']['work_ms']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function fixture(string $name): array
+    {
+        $json = file_get_contents(dirname(__DIR__).'/fixtures/'.$name.'.json');
+
+        return json_decode((string) $json, true, flags: JSON_THROW_ON_ERROR);
     }
 
     /**

@@ -3,17 +3,19 @@
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Services;
 
 /**
- * Turns a finished profile of the bridge (docs/API.md, "Profile result", wing commit 49f32b3) into what
+ * Turns a finished profile of the bridge (docs/API.md, "Profile result", wing commit a1b761f) into what
  * the tab Lag analysis shows: the share of the tick time per mod, the top methods, the GC pauses and
  * the stacks for the flamegraph.
  *
  * Only the thread "Server thread" counts for the share per mod, it runs the ticks. With the mode wall
  * it is sampled every interval whether it works or waits; samples below MinecraftServer.waitUntilNextTick
  * or MinecraftServer.waitForTasks are the idle time between two ticks, everything else is tick work.
- * The shares are of the tick work only.
+ * The shares are of the tick work only. The methods are named after the mappings the server runs with
+ * (MAPPINGS, the same table as in docs/API.md of the bridge, "Tick and idle methods").
  *
  * - Self time: the sample goes to the owner of the deepest frame that is not the JVM's (time in a
- *   HashMap called by a mod is the mod's).
+ *   HashMap called by a mod is the mod's). Waiting inside a tick (that frame is waitForTasks, e.g. a mod
+ *   loads a chunk and waits for it) goes to the deepest mod or plugin in the stack, else stays Minecraft's.
  * - Inclusive time: every owner anywhere in the stack, once per sample.
  *
  * Plain PHP, tested without Laravel.
@@ -24,13 +26,50 @@ final class ProfileAnalyzer
 {
     public const SERVER_THREAD = 'Server thread';
 
-    /** Frames the Server thread waits in between two ticks. */
-    public const IDLE_METHODS = ['waitUntilNextTick', 'waitForTasks'];
+    public const MAPPING_MOJMAP = 'mojmap';
+
+    public const MAPPING_INTERMEDIARY = 'intermediary';
+
+    public const MAPPING_SRG = 'srg';
+
+    public const MAPPING_MCP = 'mcp';
 
     /**
-     * Tick frames: waiting below one of them (e.g. for a chunk to load) is lag, not idle time.
+     * Methods of MinecraftServer (or the BlockableEventLoop it extends) by the mappings the server runs
+     * with, checked against Mojang's server mappings, Fabric's intermediary and MCPConfig (2026-10-25):
+     *
+     * - tick: tickServer and tickChildren. Waiting below one of them (e.g. for a chunk to load) is lag,
+     *   not idle time.
+     * - idle: waitUntilNextTick and waitForTasks, the Server thread waits there between two ticks.
+     *
+     * mojmap: vanilla from 26.1, Paper from 1.20.5, NeoForge from 1.20.2, Forge from 1.20.6.
+     * intermediary: Fabric and Quilt, the same names in every version. srg: Forge 1.17 to 1.20 and
+     * NeoForge 1.20.1. mcp: Forge 1.13 to 1.16 (the ids of MCP stay the same across versions).
      */
-    public const TICK_METHODS = ['tickServer', 'tickChildren'];
+    public const MAPPINGS = [
+        self::MAPPING_MOJMAP => [
+            'tick' => ['tickServer', 'tickChildren'],
+            'idle' => ['waitUntilNextTick', 'waitForTasks'],
+        ],
+        self::MAPPING_INTERMEDIARY => [
+            'tick' => ['method_3748', 'method_3813'],
+            'idle' => ['method_16208', 'method_20813'],
+        ],
+        self::MAPPING_SRG => [
+            'tick' => ['m_5705_', 'm_5703_'],
+            'idle' => ['m_130012_', 'm_5667_'],
+        ],
+        self::MAPPING_MCP => [
+            'tick' => ['func_71217_p', 'func_71190_q'],
+            'idle' => ['func_213202_o', 'func_223705_bi'],
+        ],
+    ];
+
+    /**
+     * Up to 1.13 there is no waitUntilNextTick: MinecraftServer.run (Runnable.run, the same name in every
+     * mapping) calls Thread.sleep itself between two ticks. Counts as mcp, the tick methods are the same.
+     */
+    public const LEGACY_IDLE = ['run', 'java/lang/Thread.sleep'];
 
     public const TOP_METHODS = 30;
 
@@ -119,6 +158,9 @@ final class ProfileAnalyzer
         $samples = 0;
         $idle = 0;
 
+        /** @var array<string, int> $mappings samples with a tick or idle frame, by mapping */
+        $mappings = [];
+
         /** @var array<string, int> $self */
         $self = [];
         /** @var array<string, int> $inclusive */
@@ -151,7 +193,12 @@ final class ProfileAnalyzer
             $stackFrames = explode(';', $stack);
             $samples += $count;
 
-            $isIdle = $unit === 'samples' && $this->isIdle($stackFrames);
+            [$kind, $mapping] = $this->classify($stackFrames);
+            $isIdle = $unit === 'samples' && $kind === 'idle';
+
+            if ($mapping !== null) {
+                $mappings[$mapping] = ($mappings[$mapping] ?? 0) + $count;
+            }
 
             $ids = [];
             foreach ($stackFrames as $frame) {
@@ -190,6 +237,20 @@ final class ProfileAnalyzer
                     $selfOwner = $owner;
 
                     break;
+                }
+            }
+
+            // Waiting inside a tick (e.g. for a chunk): the mod that made the Server thread wait.
+            if ($kind === 'tick' && $selfOwner === ModPackageIndex::MINECRAFT && in_array(ModPackageIndex::split($selfFrame)[1], self::MAPPINGS[$mapping]['idle'], true)) {
+                for ($i--; $i >= 0; $i--) {
+                    $owner = $ownerOf($stackFrames[$i]);
+
+                    if (in_array($index->owner($owner)['kind'], [ModPackageIndex::KIND_MOD, ModPackageIndex::KIND_PLUGIN], true)) {
+                        $selfFrame = $stackFrames[$i];
+                        $selfOwner = $owner;
+
+                        break;
+                    }
                 }
             }
 
@@ -252,15 +313,21 @@ final class ProfileAnalyzer
             ];
         }
 
+        arsort($mappings);
+        $mapping = array_key_first($mappings);
+
         $analysis['server_thread'] = [
             'tid' => isset($thread['tid']) ? (int) $thread['tid'] : null,
+            // Null when no frame matches MAPPINGS (e.g. an obfuscated vanilla or Spigot server): the idle
+            // time can't be told apart then.
+            'mapping' => $mapping,
             'samples' => $samples,
             'idle' => $idle,
             'work' => $work,
             'idle_ms' => $toMs($idle),
             'work_ms' => $toMs($work),
             // Share of the time the Server thread worked on ticks: 100 % means it can't keep 20 TPS.
-            'tick_load_percent' => $samples > 0 && $unit === 'samples' && $analysis['mode'] === 'wall' ? round($work / $samples * 100, 2) : null,
+            'tick_load_percent' => $samples > 0 && $unit === 'samples' && $analysis['mode'] === 'wall' && $mapping !== null ? round($work / $samples * 100, 2) : null,
         ];
         $analysis['owners'] = $owners;
         $analysis['top_methods'] = $topMethods;
@@ -281,23 +348,39 @@ final class ProfileAnalyzer
      */
     public function isIdle(array $frames): bool
     {
-        foreach ($frames as $frame) {
+        return $this->classify($frames)[0] === 'idle';
+    }
+
+    /**
+     * The first tick or idle frame of MinecraftServer in a stack (root first), and the mapping it is named
+     * in. [null, null] when there is none, e.g. a stack the profiler couldn't walk ([unknown_Java]).
+     *
+     * @param  list<string>  $frames
+     * @return array{0: 'tick'|'idle'|null, 1: string|null}
+     */
+    public function classify(array $frames): array
+    {
+        foreach ($frames as $i => $frame) {
             [$class, $method] = ModPackageIndex::split($frame);
 
             if ($class === null || $method === null || !str_ends_with($class, '/MinecraftServer')) {
                 continue;
             }
 
-            if (in_array($method, self::TICK_METHODS, true)) {
-                return false;
+            if ($method === self::LEGACY_IDLE[0] && ($frames[$i + 1] ?? null) === self::LEGACY_IDLE[1]) {
+                return ['idle', self::MAPPING_MCP];
             }
 
-            if (in_array($method, self::IDLE_METHODS, true)) {
-                return true;
+            foreach (self::MAPPINGS as $mapping => $methods) {
+                foreach (['tick', 'idle'] as $kind) {
+                    if (in_array($method, $methods[$kind], true)) {
+                        return [$kind, $mapping];
+                    }
+                }
             }
         }
 
-        return false;
+        return [null, null];
     }
 
     /**

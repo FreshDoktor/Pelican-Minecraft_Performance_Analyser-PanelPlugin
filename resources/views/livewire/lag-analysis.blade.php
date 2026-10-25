@@ -176,7 +176,7 @@
                         <dd>{{ $summary['cpu_percent'] !== null ? Format::percent($summary['cpu_percent']) : '–' }}</dd>
                     </div>
                 </dl>
-                <span class="mpa-muted">{{ trans($s.'tick_load_hint') }}</span>
+                <span class="mpa-muted">{{ trans($thread && $thread['mapping'] === null && $summary['mode'] === 'wall' ? $s.'tick_load_unknown' : $s.'tick_load_hint') }}</span>
 
                 @if ($gc['pauses'] !== [])
                     <div class="mpa-timeline" title="{{ trans($s.'gc_timeline') }}">

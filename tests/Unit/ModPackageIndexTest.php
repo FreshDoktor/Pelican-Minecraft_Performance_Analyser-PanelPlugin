@@ -114,6 +114,8 @@ class ModPackageIndexTest extends TestCase
         $this->assertSame(ModPackageIndex::JVM, $index->ownerOf('sun/nio/ch/Net.poll'));
         $this->assertSame(ModPackageIndex::JVM, $index->ownerOf('Parker::park(bool, long)'));
         $this->assertSame(ModPackageIndex::JVM, $index->ownerOf('__pthread_cond_timedwait'));
+        // A native library without symbols, as in the profiles with mods.
+        $this->assertSame(ModPackageIndex::JVM, $index->ownerOf('/usr/lib/x86_64-linux-gnu/libc.so.6'));
         $this->assertSame(ModPackageIndex::LIBRARIES, $index->ownerOf('io/netty/channel/epoll/Native.epollWait'));
         $this->assertSame(ModPackageIndex::OTHER, $index->ownerOf('org/unknown/Thing.run'));
     }

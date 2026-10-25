@@ -236,8 +236,9 @@ final class ModPackageIndex
      */
     public static function split(string $frame): array
     {
-        // Java frames have a package with slashes; C++ frames like Parker::park(bool, long) and kernel frames none.
-        if (!str_contains($frame, '/') || str_contains($frame, '(') || str_contains($frame, '::')) {
+        // Java frames have a package with slashes; C++ frames like Parker::park(bool, long) and kernel frames
+        // none. Native libraries without symbols are their absolute path (/usr/lib/x86_64-linux-gnu/libc.so.6).
+        if (!str_contains($frame, '/') || str_starts_with($frame, '/') || str_contains($frame, '(') || str_contains($frame, '::')) {
             return [null, null];
         }
 

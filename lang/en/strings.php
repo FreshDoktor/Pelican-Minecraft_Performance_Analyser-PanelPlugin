@@ -103,6 +103,7 @@ return [
         'result' => 'Result (:seconds s)',
         'tick_load' => 'Tick load',
         'tick_load_hint' => 'Tick load: share of the time the Server thread worked on ticks instead of waiting for the next one. Close to 100 % the server can\'t keep 20 TPS.',
+        'tick_load_unknown' => 'Tick load unknown: the profile has none of the tick methods this plugin knows (Mojmap, Fabric intermediary, Forge SRG or MCP), so the waiting between two ticks can\'t be told from the work. Everything counts as tick work here.',
         'tick_work' => 'Tick work',
         'gc_pauses' => 'GC pauses',
         'gc_pauses_value' => ':count, :time',

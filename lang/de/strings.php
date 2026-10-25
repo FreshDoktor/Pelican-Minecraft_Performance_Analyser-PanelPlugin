@@ -103,6 +103,7 @@ return [
         'result' => 'Ergebnis (:seconds s)',
         'tick_load' => 'Tick-Auslastung',
         'tick_load_hint' => 'Tick-Auslastung: Anteil der Zeit, in der der Server thread an Ticks gearbeitet hat, statt auf den nächsten zu warten. Nahe 100 % schafft der Server keine 20 TPS mehr.',
+        'tick_load_unknown' => 'Tick-Auslastung unbekannt: Im Profil ist keine der Tick-Methoden, die das Plugin kennt (Mojmap, Fabric Intermediary, Forge SRG oder MCP), darum lässt sich das Warten zwischen zwei Ticks nicht von der Arbeit trennen. Hier zählt alles als Tick-Arbeit.',
         'tick_work' => 'Tick-Arbeit',
         'gc_pauses' => 'GC-Pausen',
         'gc_pauses_value' => ':count, :time',
