@@ -242,6 +242,59 @@ class DiagnosticsTest extends TestCase
         $this->assertNull((new Diagnostics)->highGcShare([]));
     }
 
+    public function test_the_test_server_has_the_java_its_minecraft_needs(): void
+    {
+        // Java 25 for 26.1.
+        $minecraft = ['version' => '26.1', 'source' => 'variable', 'detail' => 'MINECRAFT_VERSION'];
+
+        $this->assertNull((new Diagnostics)->javaVersion(self::example('vm'), $minecraft));
+        $this->assertNotContains('java_version', self::rules((new Diagnostics)->run(self::example('vm'), null, minecraft: $minecraft)));
+    }
+
+    public function test_java_too_old_for_the_minecraft_version(): void
+    {
+        $vm = self::example('vm');
+        $vm['java']['version'] = '17.0.12';
+        $vm['java']['feature_version'] = 17;
+
+        $findings = (new Diagnostics)->run($vm, null, minecraft: ['version' => '1.21.1', 'source' => 'variable', 'detail' => 'MC_VERSION']);
+        $finding = self::finding($findings, 'java_version');
+
+        $this->assertSame('java_version', $findings[0]['rule']);
+        $this->assertSame(Diagnostics::SEVERITY_DANGER, $finding['severity']);
+        $this->assertStringContainsString('"minecraft":"1.21.1"', $finding['body']);
+        $this->assertStringContainsString('"required":21', $finding['body']);
+        $this->assertStringContainsString('"java":17', $finding['body']);
+        $this->assertStringContainsString('java_version.sources.variable {\"name\":\"MC_VERSION\"}', $finding['body']);
+    }
+
+    public function test_java_8_is_read_from_its_old_version_string(): void
+    {
+        $vm = self::example('vm');
+        $vm['java']['version'] = '1.8.0_422';
+        unset($vm['java']['feature_version']);
+
+        $finding = (new Diagnostics)->javaVersion($vm, ['version' => '1.17.1', 'source' => 'files', 'detail' => 'versions']);
+
+        $this->assertNotNull($finding);
+        $this->assertStringContainsString('"java":8', $finding['body']);
+        $this->assertStringContainsString('"required":16', $finding['body']);
+    }
+
+    public function test_newer_java_than_an_old_minecraft_was_built_for_is_not_judged(): void
+    {
+        // Like the 1.12 modpack of the tests, which runs ZGC and so a Java of 15 or newer.
+        $this->assertNull((new Diagnostics)->javaVersion(self::example('vm'), ['version' => '1.12.2', 'source' => 'launch', 'detail' => null]));
+    }
+
+    public function test_without_the_minecraft_version_there_is_no_java_rule(): void
+    {
+        $vm = self::example('vm');
+        $vm['java']['feature_version'] = 8;
+
+        $this->assertNotContains('java_version', self::rules((new Diagnostics)->run($vm, null)));
+    }
+
     public function test_without_answers_there_is_nothing_to_say(): void
     {
         $this->assertSame([], (new Diagnostics)->run(null, null));

@@ -4,15 +4,17 @@ namespace FreshDoktor\MinecraftPerformanceAnalyser\Services;
 
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\MetricsHistory;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\MinecraftVersion;
 
 /**
  * Hints on the JVM of a server from /vm and /metrics of the bridge (docs/API.md, contract of wing
  * commit 49f32b3). Plain PHP apart from trans(), so it is tested without Laravel (tests/Unit).
  *
- * Rules (PLAN.md section 3) that need more than /vm and /metrics are not here yet: whether the Java
- * version suits the Minecraft version needs the Minecraft version of the server.
+ * Whether the Java version suits the Minecraft version needs the Minecraft version of the server, which
+ * MinecraftVersionService finds out.
  *
  * @phpstan-import-type Sample from MetricsHistory
+ * @phpstan-import-type Detected from MinecraftVersionService
  *
  * @phpstan-type Finding array{rule: string, severity: string, title: string, body: string}
  */
@@ -49,11 +51,13 @@ class Diagnostics
      * @param  array<string, mixed>|null  $metrics  answer of GET /metrics
      * @param  list<Sample>  $history  samples of the last minutes, see MetricsHistory
      * @param  array<string, mixed>|null  $liveMetaspace  live_heap.metaspace of GET /metrics?live=1, for a JVM that has not collected garbage yet
+     * @param  Detected|null  $minecraft  the Minecraft version of the server
      * @return list<Finding>
      */
-    public function run(?array $vm, ?array $metrics, array $history = [], ?array $liveMetaspace = null): array
+    public function run(?array $vm, ?array $metrics, array $history = [], ?array $liveMetaspace = null, ?array $minecraft = null): array
     {
         $findings = array_values(array_filter([
+            $vm !== null && $minecraft !== null ? $this->javaVersion($vm, $minecraft) : null,
             $vm !== null ? $this->xmxNearLimit($vm, $liveMetaspace) : null,
             $metrics !== null ? $this->oldGenerationFull($metrics) : null,
             $this->highGcShare($history),
@@ -64,6 +68,42 @@ class Diagnostics
         usort($findings, fn (array $a, array $b) => ($a['severity'] === self::SEVERITY_DANGER ? 0 : 1) <=> ($b['severity'] === self::SEVERITY_DANGER ? 0 : 1));
 
         return $findings;
+    }
+
+    /**
+     * Java older than the Minecraft version needs. Such a server usually fails while starting, so this
+     * shows in the first seconds, or when a patched loader got it to run anyway. Newer Java is not
+     * judged: old versions run on it with patched loaders too (e.g. a 1.12 modpack on ZGC).
+     *
+     * @param  array<string, mixed>  $vm
+     * @param  Detected  $minecraft
+     * @return Finding|null
+     */
+    public function javaVersion(array $vm, array $minecraft): ?array
+    {
+        $java = $vm['java']['feature_version'] ?? null;
+
+        if (!is_int($java)) {
+            // Java 8 and older report 1.8.0_…
+            $java = preg_match('/^(?:1\.)?(\d+)/', (string) ($vm['java']['version'] ?? ''), $matches) ? (int) $matches[1] : null;
+        }
+
+        if ($java === null || $java <= 0) {
+            return null;
+        }
+
+        $required = MinecraftVersion::requiredJava($minecraft['version']);
+
+        if ($java >= $required) {
+            return null;
+        }
+
+        return $this->finding('java_version', self::SEVERITY_DANGER, 'body', [
+            'minecraft' => $minecraft['version'],
+            'required' => $required,
+            'java' => $java,
+            'source' => (string) trans(self::TRANSLATION_PREFIX.'java_version.sources.'.$minecraft['source'], ['name' => (string) $minecraft['detail']]),
+        ]);
     }
 
     /**

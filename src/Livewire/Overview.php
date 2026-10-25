@@ -10,8 +10,10 @@ use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Permissions;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\BridgeClient;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\Diagnostics;
+use FreshDoktor\MinecraftPerformanceAnalyser\Services\MinecraftVersionService;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\MetricsHistory;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\MinecraftVersion;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\SvgChart;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
@@ -30,6 +32,7 @@ use Throwable;
  * open, nothing is stored.
  *
  * @phpstan-import-type Sample from MetricsHistory
+ * @phpstan-import-type Detected from MinecraftVersionService
  */
 class Overview extends Component
 {
@@ -79,6 +82,10 @@ class Overview extends Component
 
     #[Locked]
     public ?string $vmError = null;
+
+    /** @var Detected|null the Minecraft version, found out with every /vm */
+    #[Locked]
+    public ?array $minecraft = null;
 
     /** When /vm was fetched (Unix seconds), to ask again for VM.flags while the JVM starts. */
     #[Locked]
@@ -141,6 +148,7 @@ class Overview extends Component
         // A new JVM has other start arguments and maybe other limits, and its old live heap is gone.
         if ($last !== null && MetricsHistory::restarted($last, $sample)) {
             $this->vm = null;
+            $this->minecraft = null;
             $this->liveHeap = null;
             $this->liveAt = null;
         }
@@ -224,12 +232,26 @@ class Overview extends Component
         try {
             $this->vm = $this->bridge()->vm($this->getServer());
             $this->vmError = null;
+            $this->loadMinecraftVersion();
         } catch (BridgeException $exception) {
             // The metrics came through, so show them and say why the rest is missing.
             $this->vmError = $exception->getMessage();
         } catch (Throwable $exception) {
             report($exception);
             $this->vmError = trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.errors.unexpected');
+        }
+    }
+
+    /**
+     * Only for the diagnosis and the facts, so a failure leaves both without it.
+     */
+    protected function loadMinecraftVersion(): void
+    {
+        try {
+            $this->minecraft = app(MinecraftVersionService::class)->detect($this->getServer(), $this->vm);
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->minecraft = null;
         }
     }
 
@@ -248,6 +270,7 @@ class Overview extends Component
                 : $exception->errorCode;
             $this->history = [];
             $this->vm = null;
+            $this->minecraft = null;
             $this->liveHeap = null;
             $this->liveAt = null;
         } else {
@@ -274,7 +297,7 @@ class Overview extends Component
     {
         $liveMetaspace = $this->liveHeap['metaspace'] ?? null;
 
-        return app(Diagnostics::class)->run($this->vm, $this->metrics, $this->history, is_array($liveMetaspace) ? $liveMetaspace : null);
+        return app(Diagnostics::class)->run($this->vm, $this->metrics, $this->history, is_array($liveMetaspace) ? $liveMetaspace : null, $this->minecraft);
     }
 
     /**
@@ -396,6 +419,18 @@ class Overview extends Component
                 'hint' => isset($metrics['classes']['current']) ? $t('classes', ['count' => number_format($metrics['classes']['current'])]) : null,
             ],
         ];
+
+        // Only when it is known.
+        if ($this->minecraft !== null) {
+            array_splice($facts, 1, 0, [[
+                'label' => $t('minecraft'),
+                'value' => $this->minecraft['version'],
+                'hint' => $t('minecraft_hint', [
+                    'java' => MinecraftVersion::requiredJava($this->minecraft['version']),
+                    'source' => trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.diagnostics.java_version.sources.'.$this->minecraft['source'], ['name' => (string) $this->minecraft['detail']]),
+                ]),
+            ]]);
+        }
 
         // Only where it can be read: a bridge with live_heap and a JVM it may attach to.
         if ($this->showsLiveHeap()) {

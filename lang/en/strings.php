@@ -199,6 +199,8 @@ return [
         ],
         'jvm' => 'JVM',
         'java' => 'Java',
+        'minecraft' => 'Minecraft',
+        'minecraft_hint' => 'needs Java :java or newer, found in :source',
         'gc_label' => 'Garbage collector',
         'gc_types' => [
             'serial' => 'Serial',
@@ -240,6 +242,15 @@ return [
 
     // Rules of Services\Diagnostics. Each has a title and one or more bodies.
     'diagnostics' => [
+        'java_version' => [
+            'title' => 'Java :java is too old for Minecraft :minecraft',
+            'body' => 'Minecraft :minecraft needs Java :required or newer, the server runs Java :java (Minecraft version found in :source). Such a server usually stops while starting. Pick an image with Java :required or newer under Startup → Docker Image.',
+            'sources' => [
+                'launch' => 'the start command',
+                'variable' => 'the variable :name',
+                'files' => 'the folder :name',
+            ],
+        ],
         'serial_gc' => [
             'title' => 'The server uses the Serial GC',
             'body_cpu' => 'The JVM picked the Serial GC itself because it only sees :cpus CPU (the CPU limit of the server). Serial collects garbage with one thread and stops the server for it, which shows as lag spikes. Give the server at least 2 CPUs (200 %) or set -XX:+UseG1GC in the startup command.',

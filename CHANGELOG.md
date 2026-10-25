@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 - 2026-10-26
+
+### Added
+
+- The diagnosis warns when the server's Java is older than its Minecraft version needs (Java 16 from 1.17, 17 from 1.18, 21 from 1.20.5, 25 from 26.1), with the Java to pick in the Docker image. The overview shows the Minecraft version next to Java. It is taken from the start command (Forge and NeoForge from 1.17, server jars named after their version), else from the egg variables such as `MC_VERSION` unless they say `latest`, else from the folders the server installed (`libraries`, `versions`). Newer Java than an old Minecraft version was built for is not reported, patched loaders run it fine
+
 ## 0.2.1 - 2026-10-26
 
 ### Changed
