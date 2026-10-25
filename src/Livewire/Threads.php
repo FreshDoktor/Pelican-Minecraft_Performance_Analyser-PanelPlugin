@@ -11,6 +11,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Services\ModPackageIndex;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\PackageIndexService;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\SnapshotStore;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\ThreadDumpAnalyzer;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\Capabilities;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -53,6 +54,7 @@ class Threads extends Component
             $dump = $this->bridge()->get($server, 'threads', [], self::BRIDGE_TIMEOUT);
         } catch (BridgeException $exception) {
             $this->error = $exception->getMessage();
+            $this->forgetCapabilities();
 
             return;
         } catch (Throwable $exception) {
@@ -89,6 +91,7 @@ class Threads extends Component
         return view('minecraft-performance-analyser::livewire.threads', [
             'stored' => $stored,
             'analysis' => $analysis,
+            'availability' => $this->availability(Capabilities::THREADS),
         ]);
     }
 }

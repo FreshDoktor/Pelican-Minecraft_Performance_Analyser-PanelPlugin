@@ -11,6 +11,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Services\HistogramAnalyzer;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\ModPackageIndex;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\PackageIndexService;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\SnapshotStore;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\Capabilities;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
@@ -40,6 +41,11 @@ class Memory extends Component
         $server = $this->getServer();
 
         abort_unless($this->userCan(Permissions::MEMORY), 403);
+
+        // The button is disabled then; no job and no activity log entry for a histogram that can't be made.
+        if (!$this->capabilities()->available(Capabilities::HISTOGRAM)) {
+            return;
+        }
 
         // One at a time per server; Cache::add is atomic.
         $status = ['status' => 'queued', 'queued_at' => time(), 'error' => null];
@@ -126,6 +132,7 @@ class Memory extends Component
             'stored' => $stored,
             'analysis' => $analysis,
             'canCreate' => $this->userCan(Permissions::MEMORY),
+            'availability' => $this->availability(Capabilities::HISTOGRAM),
         ]);
     }
 }

@@ -6,6 +6,8 @@ use App\Models\Server;
 use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Permissions;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\BridgeClient;
+use FreshDoktor\MinecraftPerformanceAnalyser\Services\ServerCapabilities;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\Capabilities;
 use Livewire\Attributes\Locked;
 
 /**
@@ -14,6 +16,9 @@ use Livewire\Attributes\Locked;
  */
 trait BelongsToServer
 {
+    /** Seconds between two looks while an action is disabled, e.g. until the server is started. */
+    public const POLL_UNAVAILABLE_SECONDS = 15;
+
     #[Locked]
     public int $serverId;
 
@@ -60,5 +65,37 @@ trait BelongsToServer
     protected function bridge(): BridgeClient
     {
         return app(BridgeClient::class);
+    }
+
+    protected function capabilities(): Capabilities
+    {
+        return app(ServerCapabilities::class)->for($this->getServer());
+    }
+
+    /**
+     * Ask the bridge again on the next render, e.g. after it refused an action: the server may have stopped
+     * in the meantime.
+     */
+    protected function forgetCapabilities(): void
+    {
+        app(ServerCapabilities::class)->forget($this->getServer());
+    }
+
+    /**
+     * Whether an action can be done now, for the view: reason null means it can. A disabled action (server
+     * stopped, JVM starting, -Xrs, …) is worth asking again after a while, see POLL_UNAVAILABLE_SECONDS.
+     *
+     * @return array{reason: ?string, text: ?string, disabled: bool}
+     */
+    public function availability(string $action): array
+    {
+        $capabilities = $this->capabilities();
+        $reason = $capabilities->reason($action);
+
+        return [
+            'reason' => $reason,
+            'text' => $reason === null ? null : trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.capabilities.'.$reason),
+            'disabled' => $capabilities->disabled($action),
+        ];
     }
 }

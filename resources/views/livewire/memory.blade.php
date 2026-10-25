@@ -30,7 +30,8 @@
         .mpa-mem .mpa-badge { font-size: 0.6875rem; padding: 0 0.375rem; border-radius: 0.375rem; background: rgba(127, 127, 127, 0.15); color: var(--mpa-muted); margin-left: 0.375rem; }
     </style>
 
-    <div wire:key="mpa-mem-{{ $pending ? 'pending' : 'idle' }}" @if ($pending) wire:poll.2s="tick" @endif class="mpa-mem">
+    {{-- Poll while the histogram is made, and slowly while it can't be made (server stopped, JVM starting, …). --}}
+    <div wire:key="mpa-mem-{{ $pending ? 'pending' : ($availability['disabled'] ? 'wait' : 'idle') }}" @if ($pending) wire:poll.2s="tick" @elseif ($availability['disabled']) wire:poll.{{ $this::POLL_UNAVAILABLE_SECONDS }}s.visible="tick" @endif class="mpa-mem">
         <section class="mpa-card">
             <h3>{{ trans($s.'title') }}</h3>
 
@@ -41,12 +42,16 @@
                     <x-filament::loading-indicator class="h-5 w-5" />
                     <span>{{ trans($s.($status['status'] === 'queued' ? 'queued' : 'running'), ['seconds' => max(0, time() - (int) $status['queued_at'])]) }}</span>
                 </div>
-            @elseif ($canCreate)
+            @elseif ($canCreate && ($availability['reason'] === null || $availability['disabled']))
                 <div>
-                    <x-filament::button icon="tabler-chart-bar" wire:click="create" wire:confirm="{{ trans($s.'confirm') }}">
+                    <x-filament::button icon="tabler-chart-bar" wire:click="create" wire:confirm="{{ trans($s.'confirm') }}" :disabled="$availability['disabled']">
                         {{ trans($s.'create') }}
                     </x-filament::button>
                 </div>
+            @endif
+
+            @if (!$pending && $availability['text'])
+                <span class="mpa-muted">{{ $availability['text'] }}</span>
             @endif
 
             @if (($status['status'] ?? null) === 'failed')

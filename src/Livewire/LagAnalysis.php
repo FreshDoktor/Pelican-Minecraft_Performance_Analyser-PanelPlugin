@@ -11,6 +11,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Services\ModPackageIndex;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\PackageIndexService;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\ProfileAnalyzer;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\ProfileStore;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\Capabilities;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\OwnerLabel;
 use Illuminate\Contracts\View\View;
@@ -100,6 +101,30 @@ class LagAnalysis extends Component
 
         $this->stored = $this->store()->list($server);
 
+        // No bridge, or one that can't profile: the stored profiles are all there is, no need to ask.
+        $reason = $this->capabilities()->reason(Capabilities::PROFILE);
+
+        if (in_array($reason, [Capabilities::BRIDGE_MISSING, Capabilities::NOT_IMPLEMENTED], true)) {
+            $this->state = $reason === Capabilities::BRIDGE_MISSING ? self::STATE_BRIDGE_MISSING : self::STATE_NOT_SUPPORTED;
+        } else {
+            $this->loadFromBridge();
+        }
+
+        $this->indexBuilding = $this->indexService()->dispatchIfNeeded($server);
+        $this->indexStatus = $this->indexService()->status($server);
+
+        if ($this->selected === null && $this->stored !== []) {
+            $this->select($this->stored[0]['key']);
+        }
+    }
+
+    /**
+     * A profile that is running already, and finished ones the panel doesn't have yet.
+     */
+    protected function loadFromBridge(): void
+    {
+        $server = $this->getServer();
+
         try {
             foreach ($this->bridge()->profiles($server) as $profile) {
                 if (in_array($profile['state'] ?? null, ['running', 'processing'], true)) {
@@ -121,13 +146,6 @@ class LagAnalysis extends Component
             report($exception);
             $this->state = self::STATE_READY;
             $this->error = $this->trans('errors.unexpected');
-        }
-
-        $this->indexBuilding = $this->indexService()->dispatchIfNeeded($server);
-        $this->indexStatus = $this->indexService()->status($server);
-
-        if ($this->selected === null && $this->stored !== []) {
-            $this->select($this->stored[0]['key']);
         }
     }
 
@@ -154,6 +172,7 @@ class LagAnalysis extends Component
             }
 
             $this->handleBridgeError($exception);
+            $this->forgetCapabilities();
 
             return;
         }
@@ -247,13 +266,15 @@ class LagAnalysis extends Component
     }
 
     /**
-     * Seconds until the next tick(), null when nothing is going on.
+     * Seconds until the next tick(), null when nothing is going on. While no profile can be started for a
+     * passing reason (server stopped, JVM starting), slowly, so the button comes back by itself.
      */
     public function pollSeconds(): ?int
     {
         return match (true) {
             $this->running !== null => 1,
             $this->indexBuilding => 3,
+            $this->state === self::STATE_READY && $this->capabilities()->disabled(Capabilities::PROFILE) => self::POLL_UNAVAILABLE_SECONDS,
             default => null,
         };
     }
@@ -340,6 +361,9 @@ class LagAnalysis extends Component
 
         $this->stored = $this->store()->list($server);
         $this->select($key);
+
+        // The new profile may show that the server has no Server thread.
+        $this->forgetCapabilities();
     }
 
     /**

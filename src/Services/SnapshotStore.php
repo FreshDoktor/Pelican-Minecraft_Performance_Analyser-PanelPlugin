@@ -56,6 +56,11 @@ class SnapshotStore
         return is_array($stored) && is_array($stored['data'] ?? null) ? $stored : null;
     }
 
+    public function has(Server $server, string $type): bool
+    {
+        return $this->disk()->exists($this->path($server, $type));
+    }
+
     public function deleteServer(Server $server): void
     {
         $this->disk()->deleteDirectory(self::DIRECTORY.'/'.$server->uuid);

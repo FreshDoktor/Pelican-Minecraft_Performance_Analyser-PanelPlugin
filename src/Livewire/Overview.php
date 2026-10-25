@@ -356,7 +356,7 @@ class Overview extends Component
         $threads = $metrics['threads'] ?? null;
         $metaspace = $metrics['metaspace'] ?? $vm['metaspace'] ?? null;
 
-        return [
+        $facts = [
             [
                 'label' => $t('java'),
                 'value' => $javaVersion === null ? '–' : $javaVersion.($vendor ? " ($vendor)" : ''),
@@ -370,13 +370,6 @@ class Overview extends Component
                 'label' => $t('heap_max'),
                 'value' => Format::bytes($xmx ?? $heapMax),
                 'hint' => $xmx === null ? $t('no_xmx') : null,
-            ],
-            [
-                'label' => $t('heap_live'),
-                'value' => isset($this->liveHeap['used_bytes']) ? Format::bytes($this->liveHeap['used_bytes']) : '–',
-                'hint' => isset($this->liveHeap['used_bytes'])
-                    ? $t('heap_live_hint', ['committed' => Format::bytes($this->liveHeap['committed_bytes'] ?? null), 'time' => Carbon::createFromTimestampMs((int) ($this->liveHeap['sampled_at'] ?? 0))->setTimezone(user()?->timezone ?? config('app.timezone'))->format('H:i:s')])
-                    : ($this->liveSupported ? $t('heap_live_waiting') : $t('heap_live_unsupported')),
             ],
             [
                 'label' => $t('memory_limit'),
@@ -403,6 +396,30 @@ class Overview extends Component
                 'hint' => isset($metrics['classes']['current']) ? $t('classes', ['count' => number_format($metrics['classes']['current'])]) : null,
             ],
         ];
+
+        // Only where it can be read: a bridge with live_heap and a JVM it may attach to.
+        if ($this->showsLiveHeap()) {
+            array_splice($facts, 3, 0, [[
+                'label' => $t('heap_live'),
+                'value' => isset($this->liveHeap['used_bytes']) ? Format::bytes($this->liveHeap['used_bytes']) : '–',
+                'hint' => isset($this->liveHeap['used_bytes'])
+                    ? $t('heap_live_hint', ['committed' => Format::bytes($this->liveHeap['committed_bytes'] ?? null), 'time' => Carbon::createFromTimestampMs((int) ($this->liveHeap['sampled_at'] ?? 0))->setTimezone(user()?->timezone ?? config('app.timezone'))->format('H:i:s')])
+                    : $t('heap_live_waiting'),
+            ]]);
+        }
+
+        return $facts;
+    }
+
+    /**
+     * Whether the overview shows the live heap: not once the bridge said it can't (before its milestone 2),
+     * nor for a JVM it won't attach to (-XX:+DisableAttachMechanism, -Xrs; the flags note says why).
+     */
+    public function showsLiveHeap(): bool
+    {
+        return $this->liveSupported
+            && (int) config(MinecraftPerformanceAnalyserPlugin::ID.'.live_interval', self::DEFAULT_LIVE_INTERVAL) > 0
+            && !in_array($this->vm['attach']['reason'] ?? null, ['disabled', 'xrs'], true);
     }
 
     /**

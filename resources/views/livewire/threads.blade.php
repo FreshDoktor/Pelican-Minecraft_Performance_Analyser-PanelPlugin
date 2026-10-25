@@ -28,17 +28,24 @@
         .mpa-thr textarea { width: 100%; height: 16rem; font-family: ui-monospace, monospace; font-size: 0.75rem; border: 1px solid var(--mpa-border); border-radius: 0.5rem; padding: 0.5rem; background: transparent; }
     </style>
 
-    <div class="mpa-thr">
+    {{-- While the dump can't be taken (server stopped, JVM starting, …) look again now and then. --}}
+    <div wire:key="mpa-thr-{{ $availability['disabled'] ? 'wait' : 'ok' }}" @if ($availability['disabled']) wire:poll.{{ $this::POLL_UNAVAILABLE_SECONDS }}s.visible="$refresh" @endif class="mpa-thr">
         <section class="mpa-card">
             <h3>{{ trans($s.'title') }}</h3>
             <span class="mpa-muted">{{ trans($s.'intro') }}</span>
 
-            <div>
-                <x-filament::button icon="tabler-list-tree" wire:click="create" wire:loading.attr="disabled" wire:target="create">
-                    {{ trans($s.'create') }}
-                </x-filament::button>
-                <x-filament::loading-indicator class="h-5 w-5 inline-block" wire:loading wire:target="create" />
-            </div>
+            @if ($availability['reason'] === null || $availability['disabled'])
+                <div>
+                    <x-filament::button icon="tabler-list-tree" wire:click="create" wire:loading.attr="disabled" wire:target="create" :disabled="$availability['disabled']">
+                        {{ trans($s.'create') }}
+                    </x-filament::button>
+                    <x-filament::loading-indicator class="h-5 w-5 inline-block" wire:loading wire:target="create" />
+                </div>
+            @endif
+
+            @if ($availability['text'])
+                <span class="mpa-muted">{{ $availability['text'] }}</span>
+            @endif
 
             @if ($error)
                 <x-filament::callout color="danger" icon="tabler-alert-triangle" :heading="trans($s.'failed')" :description="$error" />

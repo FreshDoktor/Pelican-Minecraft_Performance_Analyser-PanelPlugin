@@ -2,7 +2,7 @@
     "id": "minecraft-performance-analyser",
     "name": "Minecraft Performance Analyser",
     "author": "FreshDoktor",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Looks into the JVM of a Minecraft server: heap, GC, threads, lag analysis and memory per mod, with the MPA Bridge on the node",
     "category": "plugin",
     "url": "https://github.com/FreshDoktor/Pelican-Minecraft_Performance_Analyser-PanelPlugin",

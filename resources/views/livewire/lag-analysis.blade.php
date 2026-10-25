@@ -1,10 +1,12 @@
 @php
     use FreshDoktor\MinecraftPerformanceAnalyser\Livewire\LagAnalysis;
     use FreshDoktor\MinecraftPerformanceAnalyser\Services\ProfileAnalyzer;
+    use FreshDoktor\MinecraftPerformanceAnalyser\Support\Capabilities;
     use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 
     $s = 'minecraft-performance-analyser::strings.lag.';
     $seconds = $this->pollSeconds();
+    $availability = $this->availability(Capabilities::PROFILE);
 @endphp
 
 <div wire:init="load">
@@ -75,6 +77,9 @@
                             <x-filament::button color="gray" icon="tabler-player-stop" wire:click="cancel">{{ trans($s.'cancel') }}</x-filament::button>
                         </div>
                     @endif
+                @elseif ($availability['reason'] !== null && !$availability['disabled'])
+                    {{-- E.g. a proxy without Server thread: nothing to start here, only past results. --}}
+                    <span class="mpa-muted">{{ $availability['text'] }}</span>
                 @elseif ($this->canProfile())
                     <div class="mpa-row">
                         <x-filament::input.wrapper>
@@ -85,10 +90,14 @@
                             </x-filament::input.select>
                         </x-filament::input.wrapper>
 
-                        <x-filament::button icon="tabler-player-play" wire:click="start" wire:loading.attr="disabled">
+                        <x-filament::button icon="tabler-player-play" wire:click="start" wire:loading.attr="disabled" :disabled="$availability['disabled']">
                             {{ trans($s.'start') }}
                         </x-filament::button>
                     </div>
+
+                    @if ($availability['disabled'])
+                        <span class="mpa-muted">{{ $availability['text'] }}</span>
+                    @endif
                 @else
                     <span class="mpa-muted">{{ trans($s.'no_permission') }}</span>
                 @endif

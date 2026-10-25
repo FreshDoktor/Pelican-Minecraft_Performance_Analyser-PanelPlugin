@@ -78,6 +78,22 @@ class ContractTest extends TestCase
         }
     }
 
+    public function test_fake_server_status_has_the_features_of_the_milestone(): void
+    {
+        $status = (string) file_get_contents(self::fakeBridgeDir().'/status.json');
+
+        foreach (FakeBridge::FEATURES as $milestone => $features) {
+            $node = json_decode((string) file_get_contents(self::fakeBridgeDir()."/node-status-m$milestone.json"), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame($node['features'], $features);
+
+            $patched = json_decode(FakeBridge::body('status.json', $status, $milestone), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame($features, $patched['bridge']['features']);
+        }
+
+        $this->assertSame($status, FakeBridge::body('status.json', $status, FakeBridge::ALL));
+        $this->assertSame('{}', FakeBridge::body('vm.json', '{}', 1));
+    }
+
     public function test_every_error_code_has_a_text_in_both_languages(): void
     {
         $codes = [];

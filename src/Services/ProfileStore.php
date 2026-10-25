@@ -121,6 +121,16 @@ class ProfileStore
         return is_array($data) && is_array($data['profile'] ?? null) ? $data : null;
     }
 
+    /**
+     * Key of the newest stored profile, without reading any.
+     */
+    public function latestKey(Server $server): ?string
+    {
+        $keys = $this->keys($server);
+
+        return $keys === [] ? null : $keys[count($keys) - 1];
+    }
+
     public function has(Server $server, string $key): bool
     {
         return self::isValidKey($key) && $this->disk()->exists($this->path($server, $key));

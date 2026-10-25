@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Storage;
  * own request, the panel's other HTTP requests (Wings, Modrinth, …) go out as usual.
  *
  * MPA_FAKE_BRIDGE=true plays a bridge with every feature. m1 or m2 play a bridge of that milestone: its
- * node status (node-status-m1.json, node-status-m2.json), and 501 not_implemented for what it can't do
- * yet (m1: threads, histogram, profiles; m2: profiles).
+ * node status (node-status-m1.json, node-status-m2.json), its features in the server status, and 501
+ * not_implemented for what it can't do yet (m1: threads, histogram, profiles; m2: profiles).
  *
  * The examples are docs/examples of the bridge repo at commit 49f32b3 (milestone 3 of the bridge),
  * copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
@@ -29,6 +29,12 @@ class FakeBridge
 
     /** Milestone of the bridge with every feature the plugin uses. */
     public const ALL = 3;
+
+    /** features of the older milestones, as in node-status-m1.json and node-status-m2.json. */
+    public const FEATURES = [
+        1 => ['status', 'vm', 'metrics'],
+        2 => ['status', 'vm', 'metrics', 'threads', 'histogram', 'vm_flags', 'live_heap'],
+    ];
 
     /**
      * Milestone of the bridge to play, from the config value: true (or anything else) all, m1 / m2 that one.
@@ -54,7 +60,25 @@ class FakeBridge
             'User-Agent' => 'MPA Bridge/v'.self::VERSION.' (id:'.$node->daemon_token_id.')',
         ];
 
-        return Factory::response($file === null ? '' : (string) $this->disk()->get($file), $status, $headers);
+        $body = $file === null ? '' : static::body($file, (string) $this->disk()->get($file), $milestone);
+
+        return Factory::response($body, $status, $headers);
+    }
+
+    /**
+     * The example as a bridge of that milestone sends it: status.json lists every feature, an older bridge
+     * only its own, so the page leaves out what it can't do.
+     */
+    public static function body(string $file, string $json, int $milestone): string
+    {
+        if ($file !== 'status.json' || !isset(self::FEATURES[$milestone])) {
+            return $json;
+        }
+
+        $data = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        $data['bridge']['features'] = self::FEATURES[$milestone];
+
+        return (string) json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 
     /**

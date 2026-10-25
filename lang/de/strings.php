@@ -227,7 +227,6 @@ return [
         'heap_live' => 'Heap jetzt (live)',
         'heap_live_hint' => 'von :committed reserviert, Stand :time',
         'heap_live_waiting' => 'wird alle 30 Sekunden gelesen',
-        'heap_live_unsupported' => 'kann diese Bridge noch nicht lesen',
         // Warum VM.flags fehlen (flags_error und attach.reason von /vm).
         'flags' => [
             'jvm_starting' => 'Die JVM startet gerade, ihre Flags werden in einer halben Minute gelesen.',
@@ -289,6 +288,22 @@ return [
         'test_api_mismatch' => 'Die Bridge spricht eine andere API-Version',
         'test_api_mismatch_body' => 'MPA Bridge :version unter :url spricht API-Version :api, dieses Plugin braucht Version :expected. Aktualisiere das Plugin oder die Bridge.',
         'test_failed' => 'Die Bridge antwortet nicht',
+    ],
+
+    // Warum eine Aktion gerade nicht geht (Support\Capabilities), steht unter ihrem deaktivierten Knopf.
+    'capabilities' => [
+        'bridge_missing' => 'Für diesen Node antwortet keine MPA Bridge, siehe Übersicht.',
+        'bridge_error' => 'Die MPA Bridge dieses Nodes lässt sich gerade nicht fragen, die Übersicht sagt warum.',
+        'not_implemented' => 'Die MPA Bridge auf diesem Node kann das noch nicht, sie braucht ein Update.',
+        'no_server_thread' => 'Dieser Server hat keinen Server thread, er ist ein Proxy (Velocity, BungeeCord, …): Es gibt keine Ticks zu analysieren.',
+        'server_not_running' => 'Der Server läuft nicht. Starte ihn, um das zu nutzen.',
+        'server_paused' => 'Der Container des Servers ist pausiert.',
+        'no_java_process' => 'Im Container des Servers läuft (noch) kein Java.',
+        'hsperf_unavailable' => 'Die JVM gibt keine Leistungszähler frei: Sie startet gerade, oder der Startbefehl enthält -XX:-UsePerfData oder -XX:+PerfDisableSharedMem.',
+        'attach_disabled' => 'Der Startbefehl enthält -XX:+DisableAttachMechanism. Entferne es und starte den Server neu, um das zu nutzen.',
+        'attach_xrs' => 'Der Startbefehl enthält -Xrs, darum startet die Bridge den Attach-Listener nicht (das würde den Server beenden). Entferne -Xrs und starte den Server neu, um das zu nutzen.',
+        'attach_jvm_starting' => 'Die JVM startet gerade, in einer halben Minute geht das.',
+        'attach_unknown' => 'Ob sich die Bridge gefahrlos an diese JVM hängen kann, lässt sich gerade nicht prüfen.',
     ],
 
     'errors' => [

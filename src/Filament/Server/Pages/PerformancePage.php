@@ -16,6 +16,8 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Livewire\Overview;
 use FreshDoktor\MinecraftPerformanceAnalyser\Livewire\Threads;
 use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Permissions;
+use FreshDoktor\MinecraftPerformanceAnalyser\Services\ServerCapabilities;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\Capabilities;
 
 /**
  * The page "Performance" of a server. Each tab is a Livewire component of its own (src/Livewire), which
@@ -23,6 +25,11 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Permissions;
  *
  * Nothing on this page asks the bridge by just opening it, except the overview: thread dumps and
  * histograms stop the JVM for a moment and are only taken on request.
+ *
+ * Tabs that can't deliver data are left out (ServerCapabilities, from GET /status of the bridge): no
+ * bridge, a bridge without the feature, a proxy without Server thread. They stay when there is a stored
+ * result to look at, and when the reason passes or the user can fix it (server stopped, -Xrs, …); the
+ * tab then shows its button disabled with the reason.
  */
 class PerformancePage extends Page
 {
@@ -76,15 +83,22 @@ class PerformancePage extends Page
                 ->contained(false)
                 ->columnSpanFull()
                 ->tabs([
+                    // Always there: it tells how to set up the bridge or why the server can't be read.
                     $this->tab('overview', 'tabler-gauge', Overview::NAME, $server),
                     // Past results only need read, starting a profile is checked by the tab itself.
-                    $this->tab('lag', 'tabler-flame', LagAnalysis::NAME, $server),
+                    $this->tab('lag', 'tabler-flame', LagAnalysis::NAME, $server)
+                        ->visible(fn () => $this->capabilities()->showsTab($server, Capabilities::PROFILE)),
                     $this->tab('memory', 'tabler-database', Memory::NAME, $server)
-                        ->visible(fn () => Permissions::check(Permissions::MEMORY, $server)),
+                        ->visible(fn () => Permissions::check(Permissions::MEMORY, $server) && $this->capabilities()->showsTab($server, Capabilities::HISTOGRAM)),
                     $this->tab('threads', 'tabler-list-tree', Threads::NAME, $server)
-                        ->visible(fn () => Permissions::check(Permissions::THREADS, $server)),
+                        ->visible(fn () => Permissions::check(Permissions::THREADS, $server) && $this->capabilities()->showsTab($server, Capabilities::THREADS)),
                 ]),
         ]);
+    }
+
+    protected function capabilities(): ServerCapabilities
+    {
+        return app(ServerCapabilities::class);
     }
 
     /**

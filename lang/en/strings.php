@@ -227,7 +227,6 @@ return [
         'heap_live' => 'Heap now (live)',
         'heap_live_hint' => 'of :committed reserved, as of :time',
         'heap_live_waiting' => 'read every 30 seconds',
-        'heap_live_unsupported' => 'this bridge can\'t read it yet',
         // Why VM.flags are missing (flags_error and attach.reason of /vm).
         'flags' => [
             'jvm_starting' => 'The JVM is just starting, its flags are read in half a minute.',
@@ -289,6 +288,22 @@ return [
         'test_api_mismatch' => 'The bridge speaks another API version',
         'test_api_mismatch_body' => 'MPA Bridge :version under :url speaks API version :api, this plugin needs version :expected. Update the plugin or the bridge.',
         'test_failed' => 'The bridge does not answer',
+    ],
+
+    // Why an action can't be done right now (Support\Capabilities), shown below its disabled button.
+    'capabilities' => [
+        'bridge_missing' => 'No MPA Bridge answers for this node, see the overview.',
+        'bridge_error' => 'The MPA Bridge of this node can\'t be asked right now, the overview says why.',
+        'not_implemented' => 'The MPA Bridge on this node can\'t do this yet, it needs an update.',
+        'no_server_thread' => 'This server has no Server thread, it is a proxy (Velocity, BungeeCord, …): there are no ticks to analyse.',
+        'server_not_running' => 'The server is not running. Start it to use this.',
+        'server_paused' => 'The server\'s container is paused.',
+        'no_java_process' => 'Java isn\'t running in the server\'s container (yet).',
+        'hsperf_unavailable' => 'The JVM shares no performance counters: it is just starting, or the startup command has -XX:-UsePerfData or -XX:+PerfDisableSharedMem.',
+        'attach_disabled' => 'The startup command has -XX:+DisableAttachMechanism. Remove it and restart the server to use this.',
+        'attach_xrs' => 'The startup command has -Xrs, so the bridge doesn\'t start the attach listener (that would stop the server). Remove -Xrs and restart the server to use this.',
+        'attach_jvm_starting' => 'The JVM is just starting, this is possible in half a minute.',
+        'attach_unknown' => 'Whether the bridge can attach to this JVM safely can\'t be checked right now.',
     ],
 
     'errors' => [
