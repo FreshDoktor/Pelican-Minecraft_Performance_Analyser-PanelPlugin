@@ -139,6 +139,7 @@ return [
             'empty' => 'Nothing to show.',
             'root' => 'all',
             'samples' => ':count samples (:percent %)',
+            'deeper' => ':count deeper levels are not shown, click a frame to zoom in.',
         ],
     ],
 

@@ -227,6 +227,24 @@ class ProfileAnalyzerTest extends TestCase
         $this->assertSame(98.58, $server['tick_load_percent']);
     }
 
+    /**
+     * The largest profile so far (2.1 MB, 160,066 samples in 182 threads): what goes to the browser stays
+     * small enough to send it as it is, every frame once and only the stacks of the Server thread.
+     */
+    public function test_the_flamegraph_of_a_large_profile_stays_small(): void
+    {
+        $analysis = (new ProfileAnalyzer)->analyze(self::fixture('profile-forge-1.12-modpack'), new ModPackageIndex);
+        $flame = $analysis['flame'];
+
+        $this->assertCount(2761, $flame['frames']);
+        $this->assertCount(906, $flame['stacks']);
+        $this->assertSame(330, max(array_map(fn (array $stack) => count($stack[0]), $flame['stacks'])));
+        $this->assertLessThan(320 * 1024, strlen((string) json_encode($flame, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)));
+
+        unset($analysis['flame']);
+        $this->assertLessThan(16 * 1024, strlen((string) json_encode($analysis)));
+    }
+
     public function test_cpu_profiles_have_no_tick_load(): void
     {
         $profile = self::profile([self::serverThread([[self::TICK.';net/minecraft/world/entity/Entity.tick', 10]])], 'cpu', 10);

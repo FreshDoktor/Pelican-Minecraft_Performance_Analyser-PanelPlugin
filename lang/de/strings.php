@@ -139,6 +139,7 @@ return [
             'empty' => 'Nichts zu zeigen.',
             'root' => 'alles',
             'samples' => ':count Proben (:percent %)',
+            'deeper' => ':count tiefere Ebenen sind ausgeblendet, ein Klick auf einen Frame zoomt hinein.',
         ],
     ],
 

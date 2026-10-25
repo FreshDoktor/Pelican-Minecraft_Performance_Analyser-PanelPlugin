@@ -34,7 +34,7 @@
         .mpa-lag .mpa-progress { height: 0.5rem; border-radius: 9999px; background: rgba(127, 127, 127, 0.25); overflow: hidden; }
         .mpa-lag .mpa-progress div { height: 100%; background: rgb(59, 130, 246); transition: width 0.5s; }
         .mpa-lag .mpa-badge { font-size: 0.6875rem; padding: 0 0.375rem; border-radius: 0.375rem; background: rgba(127, 127, 127, 0.15); color: var(--mpa-muted); margin-left: 0.375rem; }
-        .mpa-lag .mpa-flame { position: relative; }
+        .mpa-lag .mpa-flame { position: relative; max-height: 75vh; overflow-y: auto; }
         .mpa-lag .mpa-flame canvas { display: block; width: 100%; cursor: pointer; }
         .mpa-lag .mpa-tip { position: absolute; pointer-events: none; z-index: 10; max-width: 32rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; font-size: 0.75rem; background: rgba(24, 24, 27, 0.92); color: #fff; overflow-wrap: anywhere; }
         .mpa-lag .mpa-timeline { position: relative; height: 1.25rem; border-radius: 0.375rem; background: rgba(127, 127, 127, 0.15); }
@@ -280,6 +280,7 @@
             <div class="mpa-tip" x-ref="tip" x-show="tip" x-cloak></div>
         </div>
         <span class="mpa-muted" x-show="empty" x-text="S.empty"></span>
+        <span class="mpa-muted" x-show="hidden > 0" x-text="S.deeper.replace(':count', hidden)"></span>
     </section>
     </div>
 </div>
@@ -298,245 +299,263 @@
 @script
 <script>
 @verbatim
-Alpine.data('mpaFlamegraph', (config) => ({
-    S: config.strings,
-    ownerNames: config.owners,
-    ready: false,
-    empty: false,
-    data: null,
-    filter: null,
-    showIdle: false,
-    root: null,
-    zoom: null,
-    zoomed: false,
-    tip: false,
-    rects: [],
-    rowHeight: 18,
+Alpine.data('mpaFlamegraph', (config) => {
+    // Rows drawn at most, deeper levels show after zooming in.
+    const MAX_ROWS = 400;
 
-    init() {
-        this.observer = new ResizeObserver(() => this.draw());
-        this.observer.observe(this.$refs.canvas.parentElement);
+    // Browsers refuse larger canvases (Safari: 16.7 million pixels); a deep graph is drawn at a lower
+    // resolution instead.
+    const MAX_PIXELS = 16000000;
 
-        const canvas = this.$refs.canvas;
-        canvas.addEventListener('mousemove', (event) => this.hover(event));
-        canvas.addEventListener('mouseleave', () => { this.tip = false; });
-        canvas.addEventListener('click', (event) => this.click(event));
-    },
+    // The profile, the tree and the drawn boxes stay outside Alpine's reactivity: its proxies made
+    // rebuilding, drawing and every mouse move about ten times slower with a large profile (the Forge
+    // 1.12 modpack: 2761 frames, 906 stacks up to 330 frames deep, 6647 boxes).
+    let data = null;
+    let root = null;
+    let zoom = null;
+    let rects = [];
 
-    destroy() {
-        this.observer?.disconnect();
-    },
+    return {
+        S: config.strings,
+        ownerNames: config.owners,
+        ready: false,
+        empty: false,
+        filter: null,
+        showIdle: false,
+        zoomed: false,
+        hidden: 0,
+        tip: false,
+        rowHeight: 18,
 
-    load(detail) {
-        this.data = detail.flame;
-        this.filter = null;
-        this.ready = true;
-        this.rebuild();
-    },
+        init() {
+            this.observer = new ResizeObserver(() => this.draw());
+            this.observer.observe(this.$refs.canvas.parentElement);
 
-    setFilter(ownerKey) {
-        if (!this.data) {
-            return;
-        }
+            const canvas = this.$refs.canvas;
+            canvas.addEventListener('mousemove', (event) => this.hover(event));
+            canvas.addEventListener('mouseleave', () => { this.tip = false; });
+            canvas.addEventListener('click', (event) => this.click(event));
+        },
 
-        const index = ownerKey === null ? -1 : this.data.owners.findIndex((owner) => owner.key === ownerKey);
-        this.filter = index < 0 || this.filter === index ? null : index;
-        this.rebuild();
-        this.$el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    },
+        destroy() {
+            this.observer?.disconnect();
+        },
 
-    ownerLabel(index) {
-        const owner = this.data?.owners[index];
+        load(detail) {
+            data = detail.flame;
+            this.filter = null;
+            this.ready = true;
+            this.rebuild();
+        },
 
-        if (!owner) {
-            return '';
-        }
-
-        return ['mod', 'plugin'].includes(owner.kind) ? owner.name : (this.ownerNames[owner.kind] ?? owner.name);
-    },
-
-    // Merge the stacks into a tree: {name, owner, value, children: Map}.
-    rebuild() {
-        const root = { name: this.S.root, owner: -1, value: 0, children: new Map() };
-
-        for (const [ids, count, idle] of this.data?.stacks ?? []) {
-            if (idle && !this.showIdle) {
-                continue;
-            }
-
-            if (this.filter !== null && !ids.some((id) => this.data.frames[id][1] === this.filter)) {
-                continue;
-            }
-
-            root.value += count;
-            let node = root;
-
-            for (const id of ids) {
-                let child = node.children.get(id);
-
-                if (!child) {
-                    child = { name: this.data.frames[id][0], owner: this.data.frames[id][1], value: 0, children: new Map() };
-                    node.children.set(id, child);
-                }
-
-                child.value += count;
-                node = child;
-            }
-        }
-
-        this.root = root;
-        this.zoom = root;
-        this.zoomed = false;
-        this.empty = root.value === 0;
-        this.draw();
-    },
-
-    resetZoom() {
-        this.zoom = this.root;
-        this.zoomed = false;
-        this.draw();
-    },
-
-    depth(node) {
-        let max = 0;
-
-        for (const child of node.children.values()) {
-            max = Math.max(max, this.depth(child));
-        }
-
-        return max + 1;
-    },
-
-    color(node) {
-        if (node.owner < 0) {
-            return 'rgb(161, 161, 170)';
-        }
-
-        const owner = this.data.owners[node.owner];
-        const highlighted = this.filter === null || node.owner === this.filter;
-        const alpha = highlighted ? 1 : 0.35;
-
-        switch (owner.kind) {
-            case 'jvm': return `rgba(161, 161, 170, ${alpha})`;
-            case 'minecraft': return `rgba(34, 197, 94, ${alpha})`;
-            case 'loader': return `rgba(59, 130, 246, ${alpha})`;
-            case 'libraries': return `rgba(20, 184, 166, ${alpha})`;
-            case 'other': return `rgba(113, 113, 122, ${alpha})`;
-        }
-
-        // Mods and plugins: a warm color per mod, the same on every draw.
-        let hash = 0;
-        for (const char of owner.key) {
-            hash = (hash * 31 + char.charCodeAt(0)) | 0;
-        }
-
-        return `hsla(${Math.abs(hash) % 60}, 85%, ${50 + (Math.abs(hash >> 8) % 15)}%, ${alpha})`;
-    },
-
-    draw() {
-        const canvas = this.$refs.canvas;
-        const width = canvas.parentElement.clientWidth;
-
-        if (!this.zoom || width === 0) {
-            return;
-        }
-
-        const rows = Math.min(this.depth(this.zoom), 200);
-        const height = rows * this.rowHeight;
-        const ratio = window.devicePixelRatio || 1;
-
-        canvas.width = width * ratio;
-        canvas.height = height * ratio;
-        canvas.style.height = height + 'px';
-
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-        ctx.clearRect(0, 0, width, height);
-        ctx.font = '11px ui-monospace, monospace';
-        ctx.textBaseline = 'middle';
-
-        this.rects = [];
-        const total = Math.max(1, this.zoom.value);
-
-        const drawNode = (node, x, level) => {
-            const w = node.value / total * width;
-
-            if (w < 0.5 || level >= rows) {
+        setFilter(ownerKey) {
+            if (!data) {
                 return;
             }
 
-            const y = level * this.rowHeight;
-            ctx.fillStyle = this.color(node);
-            ctx.fillRect(x, y, Math.max(w - 1, 0.5), this.rowHeight - 1);
-            this.rects.push({ x, y, w, node });
+            const index = ownerKey === null ? -1 : data.owners.findIndex((owner) => owner.key === ownerKey);
+            this.filter = index < 0 || this.filter === index ? null : index;
+            this.rebuild();
+            this.$el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        },
 
-            if (w > 30) {
-                ctx.fillStyle = 'rgb(24, 24, 27)';
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(x, y, w - 2, this.rowHeight);
-                ctx.clip();
-                ctx.fillText(this.shortName(node.name), x + 3, y + this.rowHeight / 2);
-                ctx.restore();
+        ownerLabel(index) {
+            const owner = data?.owners[index];
+
+            if (!owner) {
+                return '';
             }
 
-            let childX = x;
-            for (const child of [...node.children.values()].sort((a, b) => b.value - a.value)) {
-                drawNode(child, childX, level + 1);
-                childX += child.value / total * width;
+            return ['mod', 'plugin'].includes(owner.kind) ? owner.name : (this.ownerNames[owner.kind] ?? owner.name);
+        },
+
+        // Merge the stacks into a tree: {name, owner, value, children: Map}.
+        rebuild() {
+            const tree = { name: this.S.root, owner: -1, value: 0, children: new Map() };
+
+            for (const [ids, count, idle] of data?.stacks ?? []) {
+                if (idle && !this.showIdle) {
+                    continue;
+                }
+
+                if (this.filter !== null && !ids.some((id) => data.frames[id][1] === this.filter)) {
+                    continue;
+                }
+
+                tree.value += count;
+                let node = tree;
+
+                for (const id of ids) {
+                    let child = node.children.get(id);
+
+                    if (!child) {
+                        child = { name: data.frames[id][0], owner: data.frames[id][1], value: 0, children: new Map() };
+                        node.children.set(id, child);
+                    }
+
+                    child.value += count;
+                    node = child;
+                }
             }
-        };
 
-        drawNode(this.zoom, 0, 0);
-    },
+            root = tree;
+            this.empty = tree.value === 0;
+            this.setZoom(root);
+        },
 
-    // net/minecraft/server/MinecraftServer.tickServer → MinecraftServer.tickServer
-    shortName(name) {
-        const slash = name.lastIndexOf('/');
+        resetZoom() {
+            this.setZoom(root);
+        },
 
-        return slash >= 0 && !name.includes('(') ? name.slice(slash + 1) : name;
-    },
+        // The zoomed frame is the top row, so the graph scrolls back to the top.
+        setZoom(node) {
+            zoom = node;
+            this.zoomed = zoom !== root;
+            this.$refs.canvas.parentElement.scrollTop = 0;
+            this.draw();
+        },
 
-    find(event) {
-        const box = this.$refs.canvas.getBoundingClientRect();
-        const x = event.clientX - box.left;
-        const y = event.clientY - box.top;
+        depth(node) {
+            let max = 0;
 
-        return this.rects.find((rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + this.rowHeight) ?? null;
-    },
+            for (const child of node.children.values()) {
+                max = Math.max(max, this.depth(child));
+            }
 
-    hover(event) {
-        const rect = this.find(event);
-        const tip = this.$refs.tip;
+            return max + 1;
+        },
 
-        if (!rect) {
-            this.tip = false;
+        color(node) {
+            if (node.owner < 0) {
+                return 'rgb(161, 161, 170)';
+            }
 
-            return;
-        }
+            const owner = data.owners[node.owner];
+            const highlighted = this.filter === null || node.owner === this.filter;
+            const alpha = highlighted ? 1 : 0.35;
 
-        const percent = (rect.node.value / Math.max(1, this.root.value) * 100).toFixed(2);
-        tip.textContent = `${rect.node.name}\n${rect.node.owner >= 0 ? this.ownerLabel(rect.node.owner) + ' · ' : ''}${this.S.samples.replace(':count', rect.node.value).replace(':percent', percent)}`;
-        tip.style.whiteSpace = 'pre-line';
+            switch (owner.kind) {
+                case 'jvm': return `rgba(161, 161, 170, ${alpha})`;
+                case 'minecraft': return `rgba(34, 197, 94, ${alpha})`;
+                case 'loader': return `rgba(59, 130, 246, ${alpha})`;
+                case 'libraries': return `rgba(20, 184, 166, ${alpha})`;
+                case 'other': return `rgba(113, 113, 122, ${alpha})`;
+            }
 
-        const box = this.$refs.canvas.getBoundingClientRect();
-        tip.style.left = Math.min(event.clientX - box.left + 12, box.width - 260) + 'px';
-        tip.style.top = (event.clientY - box.top + 14) + 'px';
-        this.tip = true;
-    },
+            // Mods and plugins: a warm color per mod, the same on every draw.
+            let hash = 0;
+            for (const char of owner.key) {
+                hash = (hash * 31 + char.charCodeAt(0)) | 0;
+            }
 
-    click(event) {
-        const rect = this.find(event);
+            return `hsla(${Math.abs(hash) % 60}, 85%, ${50 + (Math.abs(hash >> 8) % 15)}%, ${alpha})`;
+        },
 
-        if (!rect) {
-            return;
-        }
+        draw() {
+            const canvas = this.$refs.canvas;
+            const width = canvas.parentElement.clientWidth;
 
-        this.zoom = rect.node === this.zoom ? this.root : rect.node;
-        this.zoomed = this.zoom !== this.root;
-        this.draw();
-    },
-}));
+            if (!zoom || width === 0) {
+                return;
+            }
+
+            const depth = this.depth(zoom);
+            const rows = Math.min(depth, MAX_ROWS);
+            const height = rows * this.rowHeight;
+            const ratio = Math.min(window.devicePixelRatio || 1, Math.sqrt(MAX_PIXELS / (width * height)));
+
+            this.hidden = depth - rows;
+            canvas.width = Math.floor(width * ratio);
+            canvas.height = Math.floor(height * ratio);
+            canvas.style.height = height + 'px';
+
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+            ctx.font = '11px ui-monospace, monospace';
+            ctx.textBaseline = 'middle';
+
+            rects = [];
+            const total = Math.max(1, zoom.value);
+
+            const drawNode = (node, x, level) => {
+                const w = node.value / total * width;
+
+                if (w < 0.5 || level >= rows) {
+                    return;
+                }
+
+                const y = level * this.rowHeight;
+                ctx.fillStyle = this.color(node);
+                ctx.fillRect(x, y, Math.max(w - 1, 0.5), this.rowHeight - 1);
+                rects.push({ x, y, w, node });
+
+                if (w > 30) {
+                    ctx.fillStyle = 'rgb(24, 24, 27)';
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(x, y, w - 2, this.rowHeight);
+                    ctx.clip();
+                    ctx.fillText(this.shortName(node.name), x + 3, y + this.rowHeight / 2);
+                    ctx.restore();
+                }
+
+                let childX = x;
+                for (const child of [...node.children.values()].sort((a, b) => b.value - a.value)) {
+                    drawNode(child, childX, level + 1);
+                    childX += child.value / total * width;
+                }
+            };
+
+            drawNode(zoom, 0, 0);
+        },
+
+        // net/minecraft/server/MinecraftServer.tickServer → MinecraftServer.tickServer
+        shortName(name) {
+            const slash = name.lastIndexOf('/');
+
+            return slash >= 0 && !name.includes('(') ? name.slice(slash + 1) : name;
+        },
+
+        find(event) {
+            const box = this.$refs.canvas.getBoundingClientRect();
+            const x = event.clientX - box.left;
+            const y = event.clientY - box.top;
+
+            return rects.find((rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + this.rowHeight) ?? null;
+        },
+
+        hover(event) {
+            const rect = this.find(event);
+            const tip = this.$refs.tip;
+
+            if (!rect) {
+                this.tip = false;
+
+                return;
+            }
+
+            const percent = (rect.node.value / Math.max(1, root.value) * 100).toFixed(2);
+            tip.textContent = `${rect.node.name}\n${rect.node.owner >= 0 ? this.ownerLabel(rect.node.owner) + ' · ' : ''}${this.S.samples.replace(':count', rect.node.value).replace(':percent', percent)}`;
+            tip.style.whiteSpace = 'pre-line';
+
+            const box = this.$refs.canvas.getBoundingClientRect();
+            tip.style.left = Math.min(event.clientX - box.left + 12, box.width - 260) + 'px';
+            tip.style.top = (event.clientY - box.top + 14) + 'px';
+            this.tip = true;
+        },
+
+        click(event) {
+            const rect = this.find(event);
+
+            if (!rect) {
+                return;
+            }
+
+            this.setZoom(rect.node === zoom ? root : rect.node);
+        },
+    };
+});
 @endverbatim
 </script>
 @endscript

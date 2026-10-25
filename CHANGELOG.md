@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-10-26
+
+### Changed
+
+- The flamegraph of the lag analysis stays smooth with large profiles, such as a big Forge modpack with stacks over 300 frames deep: drawing, filtering and hovering are about ten times faster. It now scrolls inside its own box instead of making the page several screens long, shows up to 400 levels (before 200, cut off without a word) and says how many deeper levels are hidden. Very deep graphs are drawn at a lower resolution, so browsers with a limit on the canvas size (Safari) still show them
+
 ## 0.2.0 - 2026-10-25
 
 ### Added
