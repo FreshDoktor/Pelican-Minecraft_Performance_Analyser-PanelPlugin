@@ -7,8 +7,10 @@ use App\Models\Server;
 use FreshDoktor\MinecraftPerformanceAnalyser\Exceptions\BridgeException;
 use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Models\NodeBridge;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Lang;
@@ -18,21 +20,31 @@ use Illuminate\Support\Facades\Lang;
  * the token stays in the panel.
  *
  * Built like Pelican's Http::daemon() macro (AppServiceProvider) and DaemonRepository: the node's
- * daemon token as Bearer, and the answer has to carry the User-Agent "MPA Bridge/v<version>
+ * daemon token as Bearer, and every answer has to carry the User-Agent "MPA Bridge/v<version>
  * (id:<token id>)" with the token id of this node, so the panel knows it talks to the bridge of the
  * right node. Unlike Wings the bridge has its own address per node (see NodeBridge), and TLS is only
  * checked when that address is https.
  *
- * The endpoints and their answers are set by docs/API.md of the bridge.
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 30d9143
+ * (the contract of 06db32d plus "/status can answer 503 docker_unavailable"). Unknown fields are ignored,
+ * as the contract asks.
  */
 class BridgeClient
 {
     public const API_PREFIX = 'api/v1';
 
+    public const API_VERSION = 1;
+
+    /** Commit of docs/API.md in the bridge repo this client was written against. */
+    public const CONTRACT = '30d9143';
+
     public const DEFAULT_PORT = 8090;
 
     /** Like DaemonRepository::enforceValidNodeToken() with "Pelican Wings", group 1 is the token id. */
     public const USER_AGENT_PATTERN = '/^MPA Bridge\/v(?:\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-+]+)?|develop) \(id:(\w*)\)$/';
+
+    /** Values of state in GET /status besides ready, each is also the error code /vm and /metrics answer with. */
+    public const NOT_READY_STATES = ['server_not_running', 'no_java_process', 'hsperf_unavailable'];
 
     /** @var array<int, string> base address by node id, looked up once per request */
     protected array $baseUrls = [];
@@ -55,6 +67,58 @@ class BridgeClient
         $port = (int) config(MinecraftPerformanceAnalyserPlugin::ID.'.default_port', self::DEFAULT_PORT);
 
         return "{$node->scheme}://{$node->fqdn}:".($port > 0 ? $port : self::DEFAULT_PORT);
+    }
+
+    /**
+     * GET /api/v1/status: version, API version, features and limits of the bridge of a node. For the
+     * test button and to tell whether a node has a bridge at all.
+     *
+     * @param  string|null  $baseUrl  the address to ask, null for the saved one
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function nodeStatus(Node $node, ?string $baseUrl = null): array
+    {
+        return $this->send($node, 'GET', self::API_PREFIX.'/status', baseUrl: $baseUrl);
+    }
+
+    /**
+     * GET /status of a server: container state, Java process, attach. 200 as long as the container
+     * exists, also when it is stopped.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function status(Server $server): array
+    {
+        return $this->get($server, 'status');
+    }
+
+    /**
+     * GET /vm: Java, start arguments, memory settings, GC and the limits of the container.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function vm(Server $server): array
+    {
+        return $this->get($server, 'vm');
+    }
+
+    /**
+     * GET /metrics: heap (after GC), GC, threads, classes, safepoints, cumulative since the JVM started.
+     * $live adds GC.heap_info via attach (a short safepoint, milestone 2 of the bridge).
+     *
+     * @return array<string, mixed>
+     *
+     * @throws BridgeException
+     */
+    public function metrics(Server $server, bool $live = false): array
+    {
+        return $this->get($server, 'metrics', $live ? ['live' => '1'] : []);
     }
 
     /**
@@ -82,7 +146,7 @@ class BridgeClient
     }
 
     /**
-     * @return array<mixed>
+     * @return array<mixed> empty for 204 No Content
      *
      * @throws BridgeException
      */
@@ -109,6 +173,10 @@ class BridgeClient
             throw $this->toException($response);
         }
 
+        if ($response->status() === 204) {
+            return [];
+        }
+
         $data = $response->json();
 
         if (!is_array($data)) {
@@ -119,54 +187,9 @@ class BridgeClient
     }
 
     /**
-     * Whether the bridge of a node answers, is the bridge of this node and takes its token. For the test
-     * button in the admin area, where no server is at hand: an answer of the bridge for any server, even
-     * "not found", carries the User-Agent and shows whether the token was taken.
-     *
-     * @param  string|null  $baseUrl  the address to test, null for the saved one
-     * @return string|null version of the bridge
-     *
-     * @throws BridgeException
-     */
-    public function probe(Node $node, ?string $baseUrl = null): ?string
-    {
-        $uuid = $node->servers()->value('uuid') ?? '00000000-0000-0000-0000-000000000000';
-
-        $response = $this->request($node, 'GET', self::API_PREFIX.'/servers/'.rawurlencode($uuid).'/status', [], null, $baseUrl);
-
-        if ($response->status() === 401 || $response->status() === 403) {
-            throw $this->toException($response);
-        }
-
-        return static::versionFromUserAgent($response->header('User-Agent'));
-    }
-
-    /**
-     * Send a request and make sure the bridge of this node answered it, whatever the status.
-     *
-     * @param  array<string, mixed>  $options
-     *
-     * @throws BridgeException
-     */
-    protected function request(Node $node, string $method, string $path, array $options, ?int $timeout, ?string $baseUrl): Response
-    {
-        $baseUrl = NodeBridge::normalize($baseUrl) ?? $this->baseUrl($node);
-
-        try {
-            $response = $this->http($node, $baseUrl, $timeout)->send($method, $path, $options);
-        } catch (ConnectionException $exception) {
-            throw new BridgeException(BridgeException::UNREACHABLE, $this->trans('errors.unreachable', ['url' => $baseUrl]), previous: $exception);
-        }
-
-        // Before anything else: an error page of some other service must not pass for an error of the bridge.
-        $this->verifyIdentity($response, $node, $baseUrl);
-
-        return $response;
-    }
-
-    /**
      * Whether the answer comes from the bridge of this node, like DaemonRepository::enforceValidNodeToken()
-     * does for Wings. Stricter than that: a User-Agent of another form is refused as well.
+     * does for Wings. Stricter than that: a User-Agent of another form is refused as well. The bridge sends
+     * it on every answer, errors included.
      *
      * @throws BridgeException
      */
@@ -192,6 +215,29 @@ class BridgeClient
         return (bool) config(MinecraftPerformanceAnalyserPlugin::ID.'.fake_bridge', false);
     }
 
+    /**
+     * Send a request and make sure the bridge of this node answered it, whatever the status.
+     *
+     * @param  array<string, mixed>  $options
+     *
+     * @throws BridgeException
+     */
+    protected function request(Node $node, string $method, string $path, array $options, ?int $timeout, ?string $baseUrl): Response
+    {
+        $baseUrl = NodeBridge::normalize($baseUrl) ?? $this->baseUrl($node);
+
+        try {
+            $response = $this->http($node, $baseUrl, $timeout)->send($method, $path, $options);
+        } catch (ConnectionException $exception) {
+            throw new BridgeException(BridgeException::UNREACHABLE, $this->trans('errors.unreachable', ['url' => $baseUrl]), previous: $exception);
+        }
+
+        // Before anything else: an error page of some other service must not pass for an error of the bridge.
+        $this->verifyIdentity($response, $node, $baseUrl);
+
+        return $response;
+    }
+
     protected function http(Node $node, string $baseUrl, ?int $timeout): PendingRequest
     {
         $request = Http::acceptJson()
@@ -204,6 +250,12 @@ class BridgeClient
             $request->withOptions(['verify' => (bool) config(MinecraftPerformanceAnalyserPlugin::ID.'.verify_tls', true)]);
         }
 
+        if ($this->isFake()) {
+            // Only this request is answered by the examples, see FakeBridge. stub() takes a list of callbacks.
+            $fake = app(FakeBridge::class);
+            $request->stub([fn (Request $request) => $fake->respond($request, $node)]);
+        }
+
         return $request;
     }
 
@@ -213,30 +265,60 @@ class BridgeClient
     }
 
     /**
-     * Errors of the bridge have the form {"error": "<code>", "message": "…"}. Codes the plugin knows get a
-     * translated message, others keep the message of the bridge.
+     * Errors of the bridge have the form {"error": "<code>", "message": "…", "details": {…}|null}. Codes
+     * the plugin knows get a translated message (strings.errors.bridge.<code>), others keep the English
+     * message of the bridge.
      */
     protected function toException(Response $response): BridgeException
     {
         $status = $response->status();
-
-        if ($status === 401 || $status === 403) {
-            return new BridgeException(BridgeException::UNAUTHORIZED, $this->trans('errors.unauthorized'), $status);
-        }
-
         $data = $response->json();
-        $code = is_array($data) && is_string($data['error'] ?? null) && $data['error'] !== '' ? $data['error'] : BridgeException::BRIDGE_ERROR;
+
+        $code = is_array($data) && is_string($data['error'] ?? null) && $data['error'] !== '' ? $data['error'] : null;
         $message = is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '';
+        $details = is_array($data) && is_array($data['details'] ?? null) ? $data['details'] : [];
+
+        // Without an error body, e.g. from a proxy in between that still passed the User-Agent on.
+        $code ??= match ($status) {
+            401 => BridgeException::UNAUTHORIZED,
+            default => BridgeException::BRIDGE_ERROR,
+        };
 
         $key = MinecraftPerformanceAnalyserPlugin::ID.'::strings.errors.bridge.'.$code;
 
         if (Lang::has($key)) {
-            $message = trans($key);
+            $message = trans($key, $this->replacements($details));
+
+            if ($code === 'attach_unavailable' && is_string($details['reason'] ?? null)) {
+                $reasonKey = MinecraftPerformanceAnalyserPlugin::ID.'::strings.errors.attach_reasons.'.$details['reason'];
+                $message .= ' '.(Lang::has($reasonKey) ? trans($reasonKey) : trans(MinecraftPerformanceAnalyserPlugin::ID.'::strings.errors.attach_reasons.unknown'));
+            }
         } elseif ($message === '') {
             $message = $this->trans('errors.bridge_error', ['status' => $status]);
         }
 
-        return new BridgeException($code, $message, $status);
+        return new BridgeException($code, $message, $status, details: $details);
+    }
+
+    /**
+     * Scalar details of an error as replacements for its message, sizes readable.
+     *
+     * @param  array<string, mixed>  $details
+     * @return array<string, scalar>
+     */
+    protected function replacements(array $details): array
+    {
+        $replace = [];
+
+        foreach ($details as $key => $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $replace[$key] = str_ends_with((string) $key, '_bytes') && is_numeric($value) ? Format::bytes((int) $value) : $value;
+        }
+
+        return $replace;
     }
 
     /**

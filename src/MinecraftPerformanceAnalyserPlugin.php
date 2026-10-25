@@ -23,6 +23,9 @@ class MinecraftPerformanceAnalyserPlugin implements Plugin
 {
     public const ID = 'minecraft-performance-analyser';
 
+    /** Repository of the MPA Bridge, linked where the page tells how to install it. */
+    public const BRIDGE_URL = 'https://github.com/FreshDoktor/Pelican-Minecraft_Performance_Analyser-WingPlugin';
+
     /** Feature of an egg that turns the page on whatever its tags are. */
     public const EGG_FEATURE = 'performance_analyser';
 

@@ -27,10 +27,13 @@ class NodeBridgeTab
 {
     public const FIELD = 'mpa_bridge_url';
 
+    /** Id of the tab, also its value in the query string (?tab=mpa-bridge). */
+    public const TAB_ID = 'mpa-bridge';
+
     public static function make(): Tab
     {
         return Tab::make(fn () => self::trans('node.tab'))
-            ->id('mpa-bridge')
+            ->id(self::TAB_ID)
             ->icon('tabler-activity-heartbeat')
             ->schema([
                 Section::make()
@@ -62,7 +65,7 @@ class NodeBridgeTab
     }
 
     /**
-     * Ask the bridge under the address in the field, saved or not.
+     * Ask the bridge under the address in the field, saved or not (GET /api/v1/status).
      */
     protected static function test(Node $node, ?string $url): void
     {
@@ -70,7 +73,7 @@ class NodeBridgeTab
         $url = NodeBridge::normalize($url) ?? $client->defaultUrl($node);
 
         try {
-            $version = $client->probe($node, $url);
+            $status = $client->nodeStatus($node, $url);
         } catch (BridgeException $exception) {
             Notification::make()
                 ->title(self::trans('node.test_failed'))
@@ -81,9 +84,26 @@ class NodeBridgeTab
             return;
         }
 
+        $replace = [
+            'url' => $url,
+            'version' => is_string($status['bridge_version'] ?? null) ? $status['bridge_version'] : '?',
+            'features' => implode(', ', array_filter($status['features'] ?? [], 'is_string')) ?: '–',
+        ];
+
+        // Another major API version has other fields, the plugin would misread them.
+        if (($status['api_version'] ?? null) !== BridgeClient::API_VERSION) {
+            Notification::make()
+                ->title(self::trans('node.test_api_mismatch'))
+                ->body(self::trans('node.test_api_mismatch_body', [...$replace, 'api' => (string) ($status['api_version'] ?? '?'), 'expected' => BridgeClient::API_VERSION]))
+                ->warning()
+                ->send();
+
+            return;
+        }
+
         Notification::make()
             ->title(self::trans('node.test_ok'))
-            ->body(self::trans('node.test_ok_body', ['url' => $url, 'version' => $version ?? '?']))
+            ->body(self::trans('node.test_ok_body', $replace))
             ->success()
             ->send();
     }

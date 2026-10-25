@@ -3,3 +3,7 @@
 
 # Local planning notes
 PLAN.md
+
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache/

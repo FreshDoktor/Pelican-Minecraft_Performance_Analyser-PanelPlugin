@@ -20,6 +20,115 @@ return [
         'threads' => 'Der Tab Threads kommt mit einer späteren Version: ein Thread-Dump mit Filter nach Zustand, Deadlocks und der CPU-Zeit pro Thread.',
     ],
 
+    'overview' => [
+        'loading' => 'Frage die MPA Bridge…',
+        'retry' => 'Erneut versuchen',
+        'error' => 'Fehler in der MPA Bridge',
+        'span' => 'letzte :span',
+        'fake' => [
+            'title' => 'Fake-Modus',
+            'body' => 'MPA_FAKE_BRIDGE ist an: Die Werte sind die Beispielantworten aus dem API-Vertrag, nicht die dieses Servers. Nur für die Entwicklung.',
+        ],
+        'bridge_missing' => [
+            'title' => 'Keine MPA Bridge auf dieser Node gefunden',
+            'intro' => 'Die Daten liefert die MPA Bridge, ein kleiner Dienst auf der Node. So richtest du sie ein:',
+            'step_install' => 'Installiere die Bridge auf der Node, wie in ihrer <a href=":url" target="_blank" rel="noopener" class="underline">README</a> beschrieben. Sie läuft als Root und nutzt das Token von Wings, ein zweites Secret braucht es nicht.',
+            'step_firewall' => 'Gib Port 8090 der Node für das Panel frei, und nur für das Panel: Trage seine IP unter allowed_ips in /etc/pelican/mpa-bridge.yml ein.',
+            'step_address' => 'Das Panel fragt die Bridge unter :url. Ist sie unter einer anderen Adresse erreichbar (z. B. im internen Netz, weil ein Proxy nur den Wings-Port weiterleitet), trägt ein Admin sie im Adminbereich an der Node ein, Tab MPA Bridge.',
+            'step_retry' => 'Dann versuche es erneut.',
+            'node_settings' => 'Bridge-Adresse der Node',
+        ],
+        'not_ready' => [
+            'server_not_running' => [
+                'title' => 'Der Server läuft nicht',
+                'body' => 'Starte ihn, um seine JVM zu sehen. Dieser Tab schaut alle paar Sekunden wieder nach.',
+            ],
+            'no_java_process' => [
+                'title' => 'Noch kein Java-Prozess',
+                'body' => 'Der Container des Servers läuft, Java aber (noch) nicht. Dieser Tab schaut alle paar Sekunden wieder nach.',
+            ],
+            'hsperf_unavailable' => [
+                'title' => 'Die JVM teilt keine Zähler',
+                'body' => 'Java läuft, hat aber keine lesbaren Performance-Zähler (hsperfdata). Entweder startet sie gerade, oder im Startbefehl steht -XX:-UsePerfData oder -XX:+PerfDisableSharedMem: Nimm das heraus.',
+            ],
+        ],
+        'no_findings' => 'Keine Probleme gefunden',
+        'no_findings_body' => 'Den Anteil der Zeit für die GC beurteilt der Tab, sobald er eine Minute offen ist.',
+        'vm_failed' => 'Die Angaben zur JVM ließen sich nicht lesen',
+        'heap' => [
+            'title' => 'Heap',
+            'after_gc' => 'Nach GC: Die JVM aktualisiert diese Werte nur bei einer Garbage Collection, dazwischen bleiben sie stehen.',
+            'young' => 'Young (nach GC)',
+            'old' => 'Old (nach GC)',
+            'max' => 'Maximum',
+        ],
+        'gc' => [
+            'title' => 'GC-Zeit pro Minute',
+            'subtitle' => 'Zeit, die der Server pro Minute für die Garbage Collection angehalten war.',
+            'now' => 'Jetzt: :value pro Minute',
+            'share' => 'Anteil an der Zeit: :share',
+            'top' => 'Obergrenze des Diagramms: :value',
+            'waiting' => 'Erscheint nach der zweiten Abfrage.',
+        ],
+        'jvm' => 'JVM',
+        'java' => 'Java',
+        'gc_label' => 'Garbage Collector',
+        'gc_types' => [
+            'serial' => 'Serial',
+            'parallel' => 'Parallel',
+            'g1' => 'G1',
+            'zgc' => 'ZGC',
+            'shenandoah' => 'Shenandoah',
+            'unknown' => 'Unbekannt',
+        ],
+        'gc_selected_by' => [
+            'flag' => 'im Startbefehl gesetzt',
+            'ergonomics' => 'von der JVM gewählt',
+        ],
+        'heap_max' => 'Max. Heap (Xmx)',
+        'no_xmx' => 'kein -Xmx gesetzt',
+        'memory_limit' => 'Speicherlimit des Containers',
+        'unlimited' => 'Unbegrenzt',
+        'heap_of_limit' => 'Heap ist :percent davon',
+        'cpus' => 'CPUs',
+        'host_cpus' => 'von :count auf der Node',
+        'uptime' => 'Laufzeit',
+        'threads' => 'Threads',
+        'threads_hint' => ':daemon Daemon, höchstens :peak',
+        'metaspace' => 'Metaspace',
+        'classes' => ':count Klassen geladen',
+        'vm_args' => 'JVM-Argumente',
+    ],
+
+    // Regeln von Services\Diagnostics. Jede hat einen Titel und einen oder mehrere Texte.
+    'diagnostics' => [
+        'serial_gc' => [
+            'title' => 'Der Server nutzt den Serial GC',
+            'body_cpu' => 'Die JVM hat den Serial GC selbst gewählt, weil sie nur :cpus CPU sieht (das CPU-Limit des Servers). Serial räumt mit einem Thread auf und hält den Server dafür an, das zeigt sich als Lag-Spitzen. Gib dem Server mindestens 2 CPUs (200 %) oder setze -XX:+UseG1GC im Startbefehl.',
+            'body_memory' => 'Die JVM hat den Serial GC selbst gewählt, weil der Server nur :memory Speicher hat. Serial räumt mit einem Thread auf und hält den Server dafür an, das zeigt sich als Lag-Spitzen. Setze -XX:+UseG1GC im Startbefehl oder gib dem Server mehr Speicher.',
+            'body_cpu_memory' => 'Die JVM hat den Serial GC selbst gewählt, weil sie nur :cpus CPU und :memory Speicher sieht. Serial räumt mit einem Thread auf und hält den Server dafür an, das zeigt sich als Lag-Spitzen. Gib dem Server mindestens 2 CPUs (200 %) oder setze -XX:+UseG1GC im Startbefehl.',
+            'body_unknown' => 'Serial räumt mit einem Thread auf und hält den Server dafür an, das zeigt sich als Lag-Spitzen. Setze -XX:+UseG1GC im Startbefehl.',
+            'body_flag' => 'Der Startbefehl wählt den Serial GC (-XX:+UseSerialGC). Er räumt mit einem Thread auf und hält den Server dafür an. Nimm stattdessen -XX:+UseG1GC.',
+        ],
+        'no_xmx' => [
+            'title' => 'Kein maximaler Heap gesetzt',
+            'body' => 'Im Startbefehl steht weder -Xmx noch -XX:MaxRAMPercentage, darum nimmt die JVM nur :percent % des Container-Speichers als Heap (:heap von :limit). Setze -Xmx.',
+            'body_unlimited' => 'Im Startbefehl steht weder -Xmx noch -XX:MaxRAMPercentage, darum nimmt die JVM :percent % des Speichers der Node als Heap (:heap). Setze -Xmx.',
+        ],
+        'xmx_near_limit' => [
+            'title' => 'Xmx liegt zu nah am Speicherlimit',
+            'body' => 'Heap :xmx + Metaspace :metaspace + etwa :overhead für Code-Cache, Thread-Stacks und Netzwerkpuffer ergeben :total, mehr als das Limit des Containers von :limit. Sobald der Heap ausgeschöpft ist, wird der Container wegen Speichermangels beendet, statt dass Java aufräumt. Senke -Xmx auf etwa :suggested oder gib dem Server mehr Speicher.',
+        ],
+        'high_gc_share' => [
+            'title' => 'Die Garbage Collection braucht :percent der Zeit',
+            'body' => 'In den letzten :minutes Minuten war der Server :percent der Zeit für die Garbage Collection angehalten, mehr als :limit. Gib ihm mehr Speicher oder such, was ihn füllt (Tab Speicher).',
+        ],
+        'old_gen_full' => [
+            'title' => 'Die Old Generation bleibt voll',
+            'body' => 'Auch nach der letzten Garbage Collection belegt die Old Generation :used von höchstens :max (:percent). Das deutet auf ein Speicherleck oder einen zu kleinen Heap hin.',
+        ],
+    ],
+
     // Von Pelican im Formular für Subuser gezeigt, die Schlüssel sind <gruppe>_title, <gruppe>_desc und <gruppe>_<recht>.
     'permissions' => [
         'performance_title' => 'Performance',
@@ -38,23 +147,50 @@ return [
         'url_helper' => 'Adresse, unter der das Panel die Bridge erreicht, z. B. http://10.0.0.5:8090 im internen Netz, wenn ein Proxy vor der Node nur den Wings-Port weiterleitet. Leer heißt: FQDN der Node mit Port 8090. Das Zertifikat wird nur bei https-Adressen geprüft.',
         'test' => 'Verbindung testen',
         'test_ok' => 'Die Bridge antwortet',
-        'test_ok_body' => 'MPA Bridge :version unter :url, sie nimmt das Token dieser Node an. Speichere die Node, um die Adresse zu übernehmen.',
+        'test_ok_body' => 'MPA Bridge :version unter :url nimmt das Token dieser Node an. Funktionen: :features. Speichere die Node, um die Adresse zu übernehmen.',
+        'test_api_mismatch' => 'Die Bridge spricht eine andere API-Version',
+        'test_api_mismatch_body' => 'MPA Bridge :version unter :url spricht API-Version :api, dieses Plugin braucht Version :expected. Aktualisiere das Plugin oder die Bridge.',
         'test_failed' => 'Die Bridge antwortet nicht',
     ],
 
     'errors' => [
         'unreachable' => 'Die MPA Bridge der Node ist unter :url nicht erreichbar. Ist sie installiert und gestartet, und lässt die Firewall das Panel durch?',
-        'unauthorized' => 'Die MPA Bridge hat das Token der Node abgelehnt. Sie liest das Token aus der Wings-Config, starte die Bridge neu, nachdem sich das Token geändert hat.',
         'wrong_node' => 'Unter :url antwortet etwas anderes als die MPA Bridge dieser Node. Prüfe die Bridge-Adresse der Node im Adminbereich.',
         'invalid_response' => 'Die MPA Bridge hat eine Antwort geschickt, die das Plugin nicht versteht. Passen die Versionen von Plugin und Bridge zusammen?',
         'bridge_error' => 'Fehler in der MPA Bridge (HTTP :status), siehe ihr Log auf der Node (journalctl -u mpa-bridge).',
         'unexpected' => 'Etwas ist schiefgelaufen, siehe das Log des Panels.',
 
-        // Fehlercodes der Bridge, siehe docs/API.md der Bridge. Bei unbekannten Codes steht die Meldung der Bridge da.
+        // Fehlercodes der Bridge (docs/API.md, „Errors“). Die Details eines Fehlers füllen die Platzhalter.
+        // Bei unbekannten Codes steht die englische Meldung der Bridge da.
         'bridge' => [
+            'invalid_request' => 'Die Bridge hat die Anfrage abgelehnt: :field :reason.',
+            'unauthorized' => 'Die MPA Bridge hat das Token der Node abgelehnt. Sie liest das Token aus der Wings-Config, beide müssen also auf derselben Node laufen, und das Token im Panel muss dazu passen.',
+            'ip_not_allowed' => 'Die MPA Bridge nimmt keine Anfragen von der IP des Panels an. Trage sie unter allowed_ips in /etc/pelican/mpa-bridge.yml auf der Node ein.',
+            'not_found' => 'Die MPA Bridge kennt diese Anfrage nicht. Ist sie älter als das Plugin?',
+            'method_not_allowed' => 'Die MPA Bridge kennt diese Anfrage nicht. Ist sie älter als das Plugin?',
+            'server_not_found' => 'Die MPA Bridge findet auf der Node keinen Container dieses Servers.',
             'server_not_running' => 'Der Server läuft nicht.',
             'no_java_process' => 'Im Container des Servers läuft kein Java-Prozess.',
+            'hsperf_unavailable' => 'Java läuft, hat aber keine lesbaren Performance-Zähler (hsperfdata): Es startet gerade, oder -XX:-UsePerfData bzw. -XX:+PerfDisableSharedMem ist gesetzt.',
+            'attach_unavailable' => 'Die Bridge kann sich nicht mit der JVM dieses Servers verbinden.',
+            'attach_failed' => 'Die JVM hat den Befehl der Bridge abgelehnt.',
+            'attach_timeout' => 'Die JVM hat der Bridge nicht rechtzeitig geantwortet.',
+            'output_too_large' => 'Die Antwort der JVM ist größer, als die Bridge erlaubt.',
             'profile_running' => 'Für diesen Server läuft schon eine Lag-Analyse.',
+            'too_many_profiles' => 'Auf dieser Node laufen gerade zu viele Lag-Analysen (höchstens :limit), versuche es gleich noch einmal.',
+            'profile_not_found' => 'Diese Lag-Analyse kennt die Bridge nicht mehr, sie hebt Ergebnisse 15 Minuten auf.',
+            'insufficient_tmp_space' => 'Das /tmp im Container des Servers ist für den Profiler zu voll (:free_bytes frei, :required_bytes nötig).',
+            'not_implemented' => 'Das kann diese MPA Bridge noch nicht, aktualisiere sie.',
+            'docker_unavailable' => 'Die MPA Bridge erreicht Docker auf der Node nicht.',
+            'internal_error' => 'Fehler in der MPA Bridge, siehe ihr Log auf der Node (journalctl -u mpa-bridge).',
+        ],
+
+        // details.reason von attach_unavailable.
+        'attach_reasons' => [
+            'disabled' => 'Im Startbefehl steht -XX:+DisableAttachMechanism.',
+            'xrs' => 'Im Startbefehl steht -Xrs: Den Attach-Listener zu starten, würde den Server beenden.',
+            'jvm_starting' => 'Die JVM startet gerade, versuche es in einer halben Minute noch einmal.',
+            'unknown' => 'Ob es gefahrlos geht, lässt sich bei dieser JVM nicht prüfen.',
         ],
     ],
 ];
