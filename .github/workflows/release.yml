@@ -1,20 +1,26 @@
 # Packs the plugin for a tag v<version> and publishes the GitHub release with
 # minecraft-performance-analyser.zip, to import in the panel. The zip is the
 # tagged tree without what .gitattributes marks export-ignore (tests, PHPUnit).
+# The zip gets a build provenance attestation:
+#   gh attestation verify minecraft-performance-analyser.zip --repo FreshDoktor/Pelican-Minecraft_Performance_Analyser-PanelPlugin
 name: Release
 
 on:
   push:
     tags: ["v*"]
 
+# Actions are pinned to commits (the tag as comment): a moved tag can't change
+# what builds the release. id-token and attestations sign the build provenance.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Tag matches the version
         run: |
@@ -24,7 +30,7 @@ jobs:
             exit 1
           fi
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.4"
           tools: phpunit:12
@@ -33,6 +39,10 @@ jobs:
 
       - name: Pack the plugin
         run: git archive --format=zip -o minecraft-performance-analyser.zip "$GITHUB_REF_NAME"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: minecraft-performance-analyser.zip
 
       - name: Publish the release
         env:
