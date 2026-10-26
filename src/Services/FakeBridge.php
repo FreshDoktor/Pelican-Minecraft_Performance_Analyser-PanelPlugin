@@ -21,16 +21,15 @@ use Illuminate\Support\Facades\Storage;
  * GET /ticks answers ticks.json, or the example MPA_FAKE_TICKS names (overloaded, idle, starting,
  * suspended, unsupported, jvm-starting), to look at the other states of the widget under the console.
  *
- * The examples are docs/examples of the bridge repo at commit a3caae8 (bridge 0.3.1, the tick monitor counts the ticks
- * from its second window on), copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
+ * The examples are docs/examples of the bridge repo at commit 2c06ade (bridge 1.0.0, the first release), copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
  * the same checks as real ones.
  */
 class FakeBridge
 {
     /** bridge_version of node-status.json. */
-    public const VERSION = '0.3.1';
+    public const VERSION = '1.0.0';
 
-    /** Stands for the bridge with every feature the plugin uses (0.3.1, profiles and the tick monitor). */
+    /** Stands for the bridge with every feature the plugin uses (1.0.0, profiles and the tick monitor). */
     public const ALL = 4;
 
     /** features of the older bridges, as in node-status-m1.json, -m2.json and -m3.json. */

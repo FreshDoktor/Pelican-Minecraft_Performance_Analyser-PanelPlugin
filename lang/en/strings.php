@@ -168,8 +168,8 @@ return [
         'bridge_missing' => [
             'title' => 'No MPA Bridge found on this node',
             'intro' => 'The performance data comes from the MPA Bridge, a small service on the node. To set it up:',
-            'step_install' => 'Install the bridge on the node as described in its <a href=":url" target="_blank" rel="noopener" class="underline">README</a>. It runs as root and uses the token of Wings, no second secret is needed.',
-            'step_firewall' => 'Let the panel reach port 8090 of the node, and only the panel: put its IP into allowed_ips in /etc/pelican/mpa-bridge.yml.',
+            'step_install' => 'Install the bridge on the node: as root, download <code>install.sh</code> of its latest release and run <code>bash install.sh</code>, see its <a href=":url" target="_blank" rel="noopener" class="underline">README</a>. It runs as root and uses the token of Wings, no second secret is needed.',
+            'step_firewall' => 'Let the panel reach port 8090 of the node, and only the panel. install.sh asks for the panel\'s IP and puts it into allowed_ips in /etc/pelican/mpa-bridge.yml.',
             'step_address' => 'The panel asks the bridge under :url. If it is reachable under another address (e.g. in the internal network because a proxy only forwards the Wings port), an admin sets it on the node in the admin area, tab MPA Bridge.',
             'step_retry' => 'Then try again.',
             'node_settings' => 'Bridge address of the node',

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0 - 2026-10-26
+
+The first release, together with MPA Bridge 1.0.0.
+
+### Added
+
+- The MPA Bridge installs with one script on the node (`install.sh` of its release), which asks for the panel's IP. The hint on a node without a bridge says so
+- README for users: installation of the bridge and the plugin, update, troubleshooting
+
+### Changed
+
+- The fake mode plays MPA Bridge 1.0.0
+
 ## 0.4.0 - 2026-10-26
 
 ### Added
