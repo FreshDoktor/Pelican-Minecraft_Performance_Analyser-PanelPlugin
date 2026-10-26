@@ -1,8 +1,8 @@
-> **Heads up:** this plugin does nothing on its own. It needs the [MPA Bridge](https://github.com/FreshDoktor/Pelican-Minecraft_Performance_Analyser-WingPlugin) installed on every Wings node that runs Minecraft servers. One script, one question, done.
-
 # Minecraft Performance Analyser
 
 Server lagging and nobody knows why? This plugin looks under the hood of a Minecraft server, right in the panel. It shows how the server is doing, finds out which mod eats the tick time, and points out settings that hold the server back. No extra mods or plugins on the server, nothing to set up in the game, and the server barely notices it's being watched.
+
+> **Heads up:** this plugin does nothing on its own. It needs the [MPA Bridge](https://github.com/FreshDoktor/Pelican-Minecraft_Performance_Analyser-WingPlugin) installed on every Wings node that runs Minecraft servers. One script, one question, done.
 
 ## Features
 
