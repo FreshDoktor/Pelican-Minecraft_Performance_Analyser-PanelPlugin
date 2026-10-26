@@ -17,15 +17,21 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Services\BridgeClient;
 
 /**
  * Tab "MPA Bridge" on the edit page of a node in the admin area: the address the panel reaches the
- * bridge of this node under, and a button to test it.
+ * bridge of this node under, the bridge's token, and a button to test both.
  *
  * Added through EditNode::registerCustomTabs() (Pelican's CanCustomizeTabs), see NodeBridgeServiceProvider.
- * The field is not part of the node: it isn't dehydrated into the node's attributes, it is saved into
- * NodeBridge together with the node instead (saveRelationshipsUsing runs inside the save of the page).
+ * The fields are not part of the node: they aren't dehydrated into the node's attributes, they are saved
+ * into NodeBridge together with the node instead (saveRelationshipsUsing runs inside the save of the page).
+ * The stored token is never filled into the form, an empty token field keeps it.
  */
 class NodeBridgeTab
 {
     public const FIELD = 'mpa_bridge_url';
+
+    public const TOKEN_FIELD = 'mpa_bridge_token';
+
+    /** Example for the address field only, there is no default address. */
+    public const URL_EXAMPLE = 'http://10.0.0.5:8090';
 
     /** Id of the tab, also its value in the query string (?tab=mpa-bridge). */
     public const TAB_ID = 'mpa-bridge';
@@ -44,36 +50,53 @@ class NodeBridgeTab
                         TextInput::make(self::FIELD)
                             ->label(fn () => self::trans('node.url'))
                             ->helperText(fn () => self::trans('node.url_helper'))
-                            ->placeholder(fn (?Node $record) => $record ? app(BridgeClient::class)->defaultUrl($record) : 'http://10.0.0.5:'.BridgeClient::DEFAULT_PORT)
+                            ->placeholder(self::URL_EXAMPLE)
                             ->rules(['nullable', 'url:http,https'])
                             ->maxLength(255)
                             ->columnSpanFull()
                             ->formatStateUsing(fn (?Node $record) => $record ? NodeBridge::urlFor($record) : null)
                             ->dehydrated(false)
-                            ->saveRelationshipsUsing(function (Node $record, ?string $state) {
-                                NodeBridge::saveFor($record, $state);
+                            ->saveRelationshipsUsing(function (Node $record, ?string $state, Get $get) {
+                                NodeBridge::saveFor($record, $state, $get(self::TOKEN_FIELD));
                             }),
+                        TextInput::make(self::TOKEN_FIELD)
+                            ->label(fn () => self::trans('node.token'))
+                            ->helperText(fn () => self::trans('node.token_helper'))
+                            ->placeholder(fn (?Node $record) => $record && NodeBridge::hasTokenFor($record) ? self::trans('node.token_stored') : null)
+                            ->password()
+                            // Keeps the browser from filling in the admin's own password.
+                            ->autocomplete('new-password')
+                            ->rules(['nullable', 'string', 'min:32'])
+                            ->maxLength(255)
+                            ->columnSpanFull()
+                            ->formatStateUsing(fn () => null)
+                            ->dehydrated(false),
                         Actions::make([
                             Action::make('mpa_test_bridge')
                                 ->label(fn () => self::trans('node.test'))
                                 ->icon('tabler-plug-connected')
                                 ->color('gray')
-                                ->action(fn (Get $get, Node $record) => self::test($record, $get(self::FIELD))),
+                                ->action(fn (Get $get, Node $record) => self::test($record, $get(self::FIELD), $get(self::TOKEN_FIELD))),
                         ]),
                     ]),
             ]);
     }
 
     /**
-     * Ask the bridge under the address in the field, saved or not (GET /api/v1/status).
+     * Ask the bridge under the address in the field, saved or not, with the token in the field, else the
+     * stored one (GET /api/v1/status). An empty address is not tested, there is no default one.
      */
-    protected static function test(Node $node, ?string $url): void
+    protected static function test(Node $node, ?string $url, ?string $token): void
     {
         $client = app(BridgeClient::class);
-        $url = NodeBridge::normalize($url) ?? $client->defaultUrl($node);
+        $url = NodeBridge::normalize($url) ?? ($client->isFake() ? BridgeClient::FAKE_URL : null);
 
         try {
-            $status = $client->nodeStatus($node, $url);
+            if ($url === null) {
+                throw new BridgeException(BridgeException::NOT_CONFIGURED, self::trans('errors.not_configured'));
+            }
+
+            $status = $client->nodeStatus($node, $url, NodeBridge::normalizeToken($token));
         } catch (BridgeException $exception) {
             Notification::make()
                 ->title(self::trans('node.test_failed'))

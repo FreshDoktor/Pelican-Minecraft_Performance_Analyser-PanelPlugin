@@ -168,11 +168,11 @@ return [
         'bridge_missing' => [
             'title' => 'Keine MPA Bridge auf dieser Node gefunden',
             'intro' => 'Die Daten liefert die MPA Bridge, ein kleiner Dienst auf der Node. So richtest du sie ein:',
-            'step_install' => 'Installiere die Bridge auf der Node: als Root <code>install.sh</code> aus ihrem neuesten Release herunterladen und <code>bash install.sh</code> ausführen, siehe ihre <a href=":url" target="_blank" rel="noopener" class="underline">README</a>. Sie läuft als Root und nutzt das Token von Wings, ein zweites Secret braucht es nicht.',
+            'step_install' => 'Installiere die Bridge auf der Node: als Root <code>install.sh</code> aus ihrem neuesten Release herunterladen und <code>bash install.sh</code> ausführen, siehe ihre <a href=":url" target="_blank" rel="noopener" class="underline">README</a>. Sie läuft als Root und hat ein eigenes Token, das install.sh am Ende ausgibt.',
             'step_firewall' => 'Gib Port 8090 der Node für das Panel frei, und nur für das Panel. install.sh fragt nach der IP des Panels und trägt sie unter allowed_ips in /etc/pelican/mpa-bridge.yml ein.',
-            'step_address' => 'Das Panel fragt die Bridge unter :url. Ist sie unter einer anderen Adresse erreichbar (z. B. im internen Netz, weil ein Proxy nur den Wings-Port weiterleitet), trägt ein Admin sie im Adminbereich an der Node ein, Tab MPA Bridge.',
+            'step_address' => 'Ein Admin trägt die Adresse, unter der das Panel die Bridge erreicht, und das Token, das install.sh ausgegeben hat, im Adminbereich an der Node ein, Tab MPA Bridge. Solange nicht beides gesetzt ist, fragt das Panel die Node nicht.',
             'step_retry' => 'Dann versuche es erneut.',
-            'node_settings' => 'Bridge-Adresse der Node',
+            'node_settings' => 'Bridge-Adresse und -Token der Node',
         ],
         'not_ready' => [
             'server_not_running' => [
@@ -304,12 +304,15 @@ return [
     // Tab auf der Bearbeiten-Seite einer Node im Adminbereich.
     'node' => [
         'tab' => 'MPA Bridge',
-        'description' => 'Die MPA Bridge läuft auf der Node und liefert der Seite Performance eines Minecraft-Servers ihre Daten. Mit ihr spricht immer das Panel selbst, mit dem Token der Node, nie der Browser.',
+        'description' => 'Die MPA Bridge läuft auf der Node und liefert der Seite Performance eines Minecraft-Servers ihre Daten. Mit ihr spricht immer das Panel selbst, mit dem eigenen Token der Bridge, nie der Browser.',
         'url' => 'Bridge-Adresse',
-        'url_helper' => 'Adresse, unter der das Panel die Bridge erreicht, z. B. http://10.0.0.5:8090 im internen Netz, wenn ein Proxy vor der Node nur den Wings-Port weiterleitet. Leer heißt: FQDN der Node mit Port 8090. Das Zertifikat wird nur bei https-Adressen geprüft.',
+        'url_helper' => 'Adresse, unter der das Panel die Bridge erreicht, z. B. http://node.example.com:8090, oder http://10.0.0.5:8090 im internen Netz, wenn ein Proxy vor der Node nur den Wings-Port weiterleitet. Leer heißt: Die Node hat keine Bridge, das Panel fragt sie nicht (auch das Token wird entfernt). Das Zertifikat wird nur bei https-Adressen geprüft.',
+        'token' => 'Bridge-Token',
+        'token_helper' => 'Das Token, das install.sh auf der Node ausgegeben hat (token in /etc/pelican/mpa-bridge.yml), nicht das Token von Wings. Wird verschlüsselt gespeichert und nie wieder angezeigt. Leer behält das gespeicherte Token.',
+        'token_stored' => 'Gespeichert, leer lassen, um es zu behalten',
         'test' => 'Verbindung testen',
         'test_ok' => 'Die Bridge antwortet',
-        'test_ok_body' => 'MPA Bridge :version unter :url nimmt das Token dieser Node an. Funktionen: :features. Speichere die Node, um die Adresse zu übernehmen.',
+        'test_ok_body' => 'MPA Bridge :version unter :url nimmt das Token an. Funktionen: :features. Speichere die Node, um Adresse und Token zu übernehmen.',
         'test_api_mismatch' => 'Die Bridge spricht eine andere API-Version',
         'test_api_mismatch_body' => 'MPA Bridge :version unter :url spricht API-Version :api, dieses Plugin braucht Version :expected. Aktualisiere das Plugin oder die Bridge.',
         'test_failed' => 'Die Bridge antwortet nicht',
@@ -360,6 +363,7 @@ return [
     ],
 
     'errors' => [
+        'not_configured' => 'Für diese Node ist keine MPA Bridge eingerichtet: Ein Admin trägt ihre Adresse und ihr Token im Adminbereich ein, Node, Tab MPA Bridge.',
         'unreachable' => 'Die MPA Bridge der Node ist unter :url nicht erreichbar. Ist sie installiert und gestartet, und lässt die Firewall das Panel durch?',
         'timeout' => 'Die MPA Bridge unter :url hat nicht rechtzeitig geantwortet. Bei einem großen Heap kann ein Histogramm lange dauern, versuche es erneut, wenn der Server weniger zu tun hat.',
         'wrong_node' => 'Unter :url antwortet etwas anderes als die MPA Bridge dieser Node. Prüfe die Bridge-Adresse der Node im Adminbereich.',
@@ -371,7 +375,7 @@ return [
         // Bei unbekannten Codes steht die englische Meldung der Bridge da.
         'bridge' => [
             'invalid_request' => 'Die Bridge hat die Anfrage abgelehnt: :field :reason.',
-            'unauthorized' => 'Die MPA Bridge hat das Token der Node abgelehnt. Sie liest das Token aus der Wings-Config, beide müssen also auf derselben Node laufen, und das Token im Panel muss dazu passen.',
+            'unauthorized' => 'Die MPA Bridge hat das Token abgelehnt. Trage das Token der Bridge (token in /etc/pelican/mpa-bridge.yml auf der Node, install.sh gibt es aus) im Adminbereich an der Node ein, Tab MPA Bridge.',
             'ip_not_allowed' => 'Die MPA Bridge nimmt keine Anfragen von der IP des Panels an. Trage sie unter allowed_ips in /etc/pelican/mpa-bridge.yml auf der Node ein.',
             'not_found' => 'Die MPA Bridge kennt diese Anfrage nicht. Ist sie älter als das Plugin?',
             'method_not_allowed' => 'Die MPA Bridge kennt diese Anfrage nicht. Ist sie älter als das Plugin?',

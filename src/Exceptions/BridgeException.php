@@ -15,13 +15,16 @@ use Throwable;
  */
 class BridgeException extends Exception
 {
+    /** No address or no token is set for the node's bridge, so the panel didn't contact the node at all. */
+    public const NOT_CONFIGURED = 'not_configured';
+
     /** No connection: no bridge on the node, a wrong address or a firewall in between. */
     public const UNREACHABLE = 'unreachable';
 
     /** Connected, but the bridge didn't answer within the panel's timeout. */
     public const TIMEOUT = 'timeout';
 
-    /** The bridge refused the token of the node (same code as the bridge's own). */
+    /** The bridge refused the bridge token set for the node (same code as the bridge's own). */
     public const UNAUTHORIZED = 'unauthorized';
 
     /** Something answered that is not the bridge of this node (User-Agent missing or for another token). */
@@ -51,6 +54,6 @@ class BridgeException extends Exception
      */
     public function isBridgeMissing(): bool
     {
-        return in_array($this->errorCode, [self::UNREACHABLE, self::WRONG_NODE], true);
+        return in_array($this->errorCode, [self::NOT_CONFIGURED, self::UNREACHABLE, self::WRONG_NODE], true);
     }
 }

@@ -17,8 +17,9 @@ use Throwable;
  * and the answer of GET /ticks, shared by both widgets.
  *
  * The console is the page every user opens first, so it must never wait for a bridge that isn't there.
- * Whether a node's bridge has the tick monitor (feature ticks) is asked once and kept for a few minutes,
- * also when no bridge answers. Only then is the server asked (GET /status, cached by ServerCapabilities).
+ * A node without a bridge set in the admin area is never asked. Whether a node's bridge has the tick
+ * monitor (feature ticks) is asked once and kept for a few minutes, also when no bridge answers. Only then
+ * is the server asked (GET /status, cached by ServerCapabilities).
  */
 class TickMonitor
 {
@@ -83,6 +84,11 @@ class TickMonitor
 
     public function nodeHasTicks(Node $node): bool
     {
+        // No bridge set for the node: nothing is asked, the console of every server there opens without it.
+        if (!$this->bridge->isConfigured($node)) {
+            return false;
+        }
+
         $features = Cache::get(self::nodeCacheKey($node));
 
         if (!is_array($features)) {

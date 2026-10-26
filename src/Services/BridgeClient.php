@@ -19,14 +19,16 @@ use Illuminate\Support\Facades\Lang;
  * Talks to the MPA Bridge on the node of a server, always from the panel, never from the browser, so
  * the token stays in the panel.
  *
- * Built like Pelican's Http::daemon() macro (AppServiceProvider) and DaemonRepository: the node's
- * daemon token as Bearer, and every answer has to carry the User-Agent "MPA Bridge/v<version>
- * (id:<token id>)" with the token id of this node, so the panel knows it talks to the bridge of the
- * right node. Unlike Wings the bridge has its own address per node (see NodeBridge), and TLS is only
- * checked when that address is https.
+ * Built like Pelican's Http::daemon() macro (AppServiceProvider) and DaemonRepository: a token as
+ * Bearer, and every answer has to carry the User-Agent "MPA Bridge/v<version> (id:<token id>)" with the
+ * token id of this node, so the panel knows it talks to the bridge of the right node. Unlike Wings the
+ * bridge has its own address and its own token per node (see NodeBridge), never the token of Wings, and
+ * TLS is only checked when that address is https. A node without both has no bridge: no request is sent
+ * then (not_configured), the token only goes to the address the admin set for it, and redirects are not
+ * followed.
  *
- * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit df7f20a (bridge 1.0.0, the first
- * release). Unknown fields are ignored, as the contract asks.
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 305edb3 (bridge 1.2.0, its own
+ * token instead of the one of Wings). Unknown fields are ignored, as the contract asks.
  */
 class BridgeClient
 {
@@ -35,9 +37,10 @@ class BridgeClient
     public const API_VERSION = 1;
 
     /** Commit of docs/API.md in the bridge repo this client was written against. */
-    public const CONTRACT = 'df7f20a';
+    public const CONTRACT = '305edb3';
 
-    public const DEFAULT_PORT = 8090;
+    /** Address the fake mode plays, it needs no bridge set for the node. */
+    public const FAKE_URL = 'http://mpa-bridge.fake';
 
     /** Like DaemonRepository::enforceValidNodeToken() with "Pelican Wings", group 1 is the token id. */
     public const USER_AGENT_PATTERN = '/^MPA Bridge\/v(?:\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-+]+)?|develop) \(id:(\w*)\)$/';
@@ -45,27 +48,36 @@ class BridgeClient
     /** Values of state in GET /status besides ready, each is also the error code /vm and /metrics answer with. */
     public const NOT_READY_STATES = ['server_not_running', 'no_java_process', 'hsperf_unavailable'];
 
-    /** @var array<int, string> base address by node id, looked up once per request */
-    protected array $baseUrls = [];
+    /** @var array<int, NodeBridge|null> address and token by node id, looked up once per request */
+    protected array $bridges = [];
 
     /**
-     * Address of the bridge of a node: the one set in the admin area, otherwise the node's FQDN with
-     * the default port.
+     * Address and token of the bridge of a node, set in the admin area, null if there is none.
      */
-    public function baseUrl(Node $node): string
+    public function bridgeFor(Node $node): ?NodeBridge
     {
-        return $this->baseUrls[$node->id] ??= NodeBridge::urlFor($node) ?? $this->defaultUrl($node);
+        if (!array_key_exists($node->id, $this->bridges)) {
+            $this->bridges[$node->id] = NodeBridge::for($node);
+        }
+
+        return $this->bridges[$node->id];
     }
 
     /**
-     * Address of the bridge when none is set for the node. Nodes behind a proxy usually only forward the
-     * Wings port, they need an address of their own.
+     * Address of the bridge of a node as set in the admin area, null if there is none.
      */
-    public function defaultUrl(Node $node): string
+    public function baseUrl(Node $node): ?string
     {
-        $port = (int) config(MinecraftPerformanceAnalyserPlugin::ID.'.default_port', self::DEFAULT_PORT);
+        return NodeBridge::normalize($this->bridgeFor($node)?->url);
+    }
 
-        return "{$node->scheme}://{$node->fqdn}:".($port > 0 ? $port : self::DEFAULT_PORT);
+    /**
+     * Whether the node has a bridge the panel may ask: address and token are both set (or the fake mode
+     * plays one). Without one nothing is sent to the node.
+     */
+    public function isConfigured(Node $node): bool
+    {
+        return $this->isFake() || ($this->bridgeFor($node)?->isConfigured() ?? false);
     }
 
     /**
@@ -73,13 +85,14 @@ class BridgeClient
      * test button and to tell whether a node has a bridge at all.
      *
      * @param  string|null  $baseUrl  the address to ask, null for the saved one
+     * @param  string|null  $token  the token to send, null for the saved one
      * @return array<string, mixed>
      *
      * @throws BridgeException
      */
-    public function nodeStatus(Node $node, ?string $baseUrl = null): array
+    public function nodeStatus(Node $node, ?string $baseUrl = null, ?string $token = null): array
     {
-        return $this->send($node, 'GET', self::API_PREFIX.'/status', baseUrl: $baseUrl);
+        return $this->send($node, 'GET', self::API_PREFIX.'/status', baseUrl: $baseUrl, token: $token);
     }
 
     /**
@@ -235,13 +248,14 @@ class BridgeClient
      * @param  string  $path  relative to the base address, e.g. api/v1/servers/<uuid>/status
      * @param  array<string, mixed>  $options  Guzzle options (query, json)
      * @param  string|null  $baseUrl  another address than the saved one, e.g. one to test before saving it
+     * @param  string|null  $token  another token than the saved one, e.g. one to test before saving it
      * @return array<mixed>
      *
      * @throws BridgeException
      */
-    public function send(Node $node, string $method, string $path, array $options = [], ?int $timeout = null, ?string $baseUrl = null): array
+    public function send(Node $node, string $method, string $path, array $options = [], ?int $timeout = null, ?string $baseUrl = null, ?string $token = null): array
     {
-        $response = $this->request($node, $method, $path, $options, $timeout, $baseUrl);
+        $response = $this->request($node, $method, $path, $options, $timeout, $baseUrl, $token);
 
         if ($response->failed()) {
             throw $this->toException($response);
@@ -292,18 +306,27 @@ class BridgeClient
     }
 
     /**
-     * Send a request and make sure the bridge of this node answered it, whatever the status.
+     * Send a request and make sure the bridge of this node answered it, whatever the status. Without an
+     * address and a token nothing is sent: the token must never go to an address nobody set for it.
      *
      * @param  array<string, mixed>  $options
      *
      * @throws BridgeException
      */
-    protected function request(Node $node, string $method, string $path, array $options, ?int $timeout, ?string $baseUrl): Response
+    protected function request(Node $node, string $method, string $path, array $options, ?int $timeout, ?string $baseUrl, ?string $token): Response
     {
         $baseUrl = NodeBridge::normalize($baseUrl) ?? $this->baseUrl($node);
+        $token = NodeBridge::normalizeToken($token) ?? NodeBridge::normalizeToken($this->bridgeFor($node)?->token);
+
+        if ($this->isFake()) {
+            // The fake mode answers every request itself, it needs no bridge set for the node.
+            [$baseUrl, $token] = [$baseUrl ?? self::FAKE_URL, $token ?? ''];
+        } elseif ($baseUrl === null || $token === null) {
+            throw new BridgeException(BridgeException::NOT_CONFIGURED, $this->trans('errors.not_configured'));
+        }
 
         try {
-            $response = $this->http($node, $baseUrl, $timeout)->send($method, $path, $options);
+            $response = $this->http($node, $baseUrl, $token, $timeout)->send($method, $path, $options);
         } catch (ConnectionException $exception) {
             // cURL error 28: connected, but no answer in time. The bridge is there, it is just slow (a long heap walk).
             if (str_contains($exception->getMessage(), 'cURL error 28') && !str_contains($exception->getMessage(), 'Connection timed out')) {
@@ -319,10 +342,12 @@ class BridgeClient
         return $response;
     }
 
-    protected function http(Node $node, string $baseUrl, ?int $timeout): PendingRequest
+    protected function http(Node $node, string $baseUrl, string $token, ?int $timeout): PendingRequest
     {
+        // A redirect would take the token along to another address.
         $request = Http::acceptJson()
-            ->withToken($node->daemon_token)
+            ->withToken($token)
+            ->withoutRedirecting()
             ->timeout($timeout ?? (int) config(MinecraftPerformanceAnalyserPlugin::ID.'.timeout', 10))
             ->connectTimeout((int) config(MinecraftPerformanceAnalyserPlugin::ID.'.connect_timeout', 3))
             ->baseUrl($baseUrl);

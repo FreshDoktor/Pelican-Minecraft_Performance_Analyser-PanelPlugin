@@ -2,6 +2,22 @@
 
 ## 1.0.0 - 2026-10-26
 
+**After updating, set up every node again:** update the MPA Bridge on each node by running its `install.sh` again (it adds a token to `/etc/pelican/mpa-bridge.yml` and prints it), then enter the bridge's address and paste that token in the panel: _Admin_ → _Nodes_ → the node → tab _MPA Bridge_. Until then the node counts as having no bridge.
+
+### Added
+
+- Bridge token per node in the tab MPA Bridge (a password field, stored encrypted, never shown again; empty keeps the stored one). _Test connection_ uses the address and token in the fields, or the stored token
+
+### Changed
+
+- The panel sends the bridge's own token instead of the Wings token of the node (needs the MPA Bridge with its own token, older bridges refuse the request with `unauthorized`). A leaked bridge token no longer gives access to Wings
+- A node has a bridge only when its address and its token are set. Without them the panel sends nothing to the node (before, the console of every Minecraft server asked `<scheme>://<FQDN>:8090` with the Wings token, also on nodes without a bridge, where any service on that port got the token). The overview then shows how to set up the bridge
+- Requests to the bridge don't follow redirects
+
+### Removed
+
+- The default bridge address `<scheme>://<FQDN>:<port>` and its setting `default_port` (`MPA_BRIDGE_PORT`)
+
 The first release, together with MPA Bridge 1.0.0.
 
 ### Added

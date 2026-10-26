@@ -1,10 +1,6 @@
 <?php
 
 return [
-    // Port of the MPA Bridge, used for nodes without a bridge address of their own (admin area → node →
-    // tab MPA Bridge). The address is then <scheme of the node>://<FQDN of the node>:<port>.
-    'default_port' => (int) env('MPA_BRIDGE_PORT', 8090),
-
     // Seconds between two updates of the live values while the overview is open, 2 to 5.
     'poll_interval' => (int) env('MPA_POLL_INTERVAL', 3),
 

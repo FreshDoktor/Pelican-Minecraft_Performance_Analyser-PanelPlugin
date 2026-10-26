@@ -511,11 +511,6 @@ class Overview extends Component
         }
     }
 
-    public function bridgeAddress(): string
-    {
-        return $this->bridge()->baseUrl($this->getServer()->node);
-    }
-
     public function render(): View
     {
         return view('minecraft-performance-analyser::livewire.overview');

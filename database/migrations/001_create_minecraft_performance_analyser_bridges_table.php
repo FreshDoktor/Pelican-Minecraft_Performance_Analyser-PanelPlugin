@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('minecraft_performance_analyser_bridges', function (Blueprint $table) {
             $table->increments('id');
 
-            // A node has at most one bridge. Nodes without a row use <scheme>://<fqdn>:<default_port>.
+            // A node has at most one bridge. Nodes without a row have none, the panel doesn't ask them.
             $table->unsignedInteger('node_id')->unique();
             $table->foreign('node_id')->references('id')->on('nodes')->cascadeOnDelete();
 

@@ -48,7 +48,7 @@
                     <ol class="mpa-steps">
                         <li>{!! trans($s.'bridge_missing.step_install', ['url' => e(\FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin::BRIDGE_URL)]) !!}</li>
                         <li>{{ trans($s.'bridge_missing.step_firewall') }}</li>
-                        <li>{{ trans($s.'bridge_missing.step_address', ['url' => $this->bridgeAddress()]) }}</li>
+                        <li>{{ trans($s.'bridge_missing.step_address') }}</li>
                         <li>{{ trans($s.'bridge_missing.step_retry') }}</li>
                     </ol>
 

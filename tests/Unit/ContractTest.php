@@ -2,6 +2,7 @@
 
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Tests\Unit;
 
+use FreshDoktor\MinecraftPerformanceAnalyser\Exceptions\BridgeException;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\FakeBridge;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -139,6 +140,17 @@ class ContractTest extends TestCase
             foreach (['disabled', 'xrs', 'jvm_starting', 'unknown'] as $reason) {
                 $this->assertArrayHasKey($reason, self::strings($locale)['errors']['attach_reasons']);
             }
+        }
+    }
+
+    public function test_a_node_without_bridge_settings_has_no_bridge(): void
+    {
+        $this->assertTrue((new BridgeException(BridgeException::NOT_CONFIGURED, ''))->isBridgeMissing());
+        $this->assertTrue((new BridgeException(BridgeException::UNREACHABLE, ''))->isBridgeMissing());
+        $this->assertFalse((new BridgeException(BridgeException::UNAUTHORIZED, '', 401))->isBridgeMissing());
+
+        foreach (['en', 'de'] as $locale) {
+            $this->assertArrayHasKey(BridgeException::NOT_CONFIGURED, self::strings($locale)['errors'], "$locale: errors.not_configured");
         }
     }
 
