@@ -4,6 +4,7 @@ namespace FreshDoktor\MinecraftPerformanceAnalyser\Filament\Server\Widgets;
 
 use App\Models\Server;
 use Filament\Facades\Filament;
+use Filament\Support\RawJs;
 use Filament\Widgets\ChartWidget;
 use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Services\TickMonitor;
@@ -151,14 +152,16 @@ abstract class TickChart extends ChartWidget
             'spanGaps' => false,
         ];
 
-        // Gaps (a lag analysis, a window without values) as a dashed line at the last value.
+        // Gaps (a lag analysis, a window without values) as a dashed line at the last value, the area below
+        // hatched (getOptions() draws the pattern in the color of mpaHatch).
         $gaps = [
             'label' => $this->trans('not_measured'),
             'data' => TickSeries::filled($points),
             'borderDash' => [6, 6],
             'borderWidth' => 1.5,
             'pointRadius' => 0,
-            'fill' => false,
+            'fill' => 'origin',
+            'mpaHatch' => $rgb,
             'tension' => 0,
             'spanGaps' => false,
         ];
@@ -176,19 +179,54 @@ abstract class TickChart extends ChartWidget
     }
 
     /**
-     * @return array<string, mixed>
+     * JavaScript, for the hatched area below the gaps: a line dataset with mpaHatch (an "r, g, b" color) and
+     * no backgroundColor of its own gets a pattern of diagonal stripes in that color. Datasets with their
+     * own backgroundColor keep it.
      */
-    protected function getOptions(): array
+    protected function getOptions(): RawJs
     {
-        return [
-            'scales' => [
-                'y' => ['min' => 0, 'suggestedMax' => $this->suggestedMax()],
-                'x' => ['display' => false],
-            ],
-            'plugins' => [
-                'legend' => ['display' => false],
-            ],
-        ];
+        $max = $this->suggestedMax();
+
+        return RawJs::make(<<<JS
+            {
+                scales: {
+                    y: { min: 0, suggestedMax: {$max} },
+                    x: { display: false },
+                },
+                plugins: {
+                    legend: { display: false },
+                },
+                datasets: {
+                    line: {
+                        backgroundColor: (context) => {
+                            const rgb = context.dataset && context.dataset.mpaHatch;
+                            if (!rgb) {
+                                return undefined;
+                            }
+                            window.mpaHatches = window.mpaHatches || {};
+                            if (!window.mpaHatches[rgb]) {
+                                const size = 8;
+                                const canvas = document.createElement('canvas');
+                                canvas.width = canvas.height = size;
+                                const draw = canvas.getContext('2d');
+                                draw.strokeStyle = 'rgba(' + rgb + ', 0.45)';
+                                draw.lineWidth = 1.5;
+                                draw.beginPath();
+                                draw.moveTo(0, size);
+                                draw.lineTo(size, 0);
+                                draw.moveTo(-size / 2, size / 2);
+                                draw.lineTo(size / 2, -size / 2);
+                                draw.moveTo(size / 2, size * 1.5);
+                                draw.lineTo(size * 1.5, size / 2);
+                                draw.stroke();
+                                window.mpaHatches[rgb] = draw.createPattern(canvas, 'repeat');
+                            }
+                            return window.mpaHatches[rgb];
+                        },
+                    },
+                },
+            }
+        JS);
     }
 
     /**

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 - 2026-10-26
+
+### Changed
+
+- The area below the dashed line over a gap in the TPS and MSPT charts is hatched with diagonal stripes, so the chart has no hole there and still shows that nothing was measured
+
 ## 0.3.1 - 2026-10-26
 
 ### Changed
