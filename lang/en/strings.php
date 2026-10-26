@@ -377,6 +377,7 @@ return [
         'unreachable' => 'The MPA Bridge of the node can\'t be reached under :url. Is it installed and running, and does the firewall let the panel through?',
         'timeout' => 'The MPA Bridge under :url did not answer in time. With a large heap a histogram can take long, try again when the server is less busy.',
         'wrong_node' => 'Under :url answers something else than the MPA Bridge of this node. Check the bridge address of the node in the admin area.',
+        'ip_not_allowed' => 'Under :url answers an MPA Bridge that refuses the panel\'s IP. Whether it is the bridge of this node can\'t be checked that way. Add the panel\'s IP to allowed_ips in /etc/pelican/mpa-bridge.yml on the node.',
         'invalid_response' => 'The MPA Bridge sent an answer the plugin doesn\'t understand. Do the versions of plugin and bridge go together?',
         'bridge_error' => 'The MPA Bridge failed (HTTP :status), see its log on the node (journalctl -u mpa-bridge).',
         'unexpected' => 'Something went wrong, see the log of the panel.',

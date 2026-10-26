@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Lang;
  *
  * Built like Pelican's Http::daemon() macro (AppServiceProvider) and DaemonRepository: a token as
  * Bearer, and every answer has to carry the User-Agent "MPA Bridge/v<version> (id:<token id>)" with the
- * token id of this node, so the panel knows it talks to the bridge of the right node. Unlike Wings the
+ * token id of this node, so the panel knows it talks to the bridge of the right node; only its 403
+ * ip_not_allowed comes without, a bridge doesn't identify itself to an address it refuses. Unlike Wings the
  * bridge has its own address and its own token per node (see NodeBridge), never the token of Wings. A
  * node without both has no bridge: no request is sent then (not_configured), the token only goes to the
  * address the admin set for it, and redirects are not followed. Addresses are https (the bridge serves it
@@ -281,17 +282,39 @@ class BridgeClient
     /**
      * Whether the answer comes from the bridge of this node, like DaemonRepository::enforceValidNodeToken()
      * does for Wings. Stricter than that: a User-Agent of another form is refused as well. The bridge sends
-     * it on every answer, errors included.
+     * it on every answer to an address in its allowed_ips, errors included.
      *
      * @throws BridgeException
      */
     public function verifyIdentity(Response $response, Node $node, string $baseUrl): void
     {
-        $header = $response->header('User-Agent');
+        $code = self::identityError($response->header('User-Agent'), (string) $node->daemon_token_id, $response->status(), $response->json());
 
-        if (!preg_match(self::USER_AGENT_PATTERN, $header, $matches) || !hash_equals((string) $node->daemon_token_id, $matches[1])) {
-            throw new BridgeException(BridgeException::WRONG_NODE, $this->trans('errors.wrong_node', ['url' => $baseUrl]), $response->status());
+        if ($code !== null) {
+            throw new BridgeException($code, $this->trans('errors.'.$code, ['url' => $baseUrl]), $response->status());
         }
+    }
+
+    /**
+     * Why an answer is not known to come from the bridge of the node with this token id (an error code,
+     * its text is strings.errors.<code>), null if it is. The bridge refuses an address outside its
+     * allowed_ips without the User-Agent, so strangers learn neither its version nor its token id: such a
+     * 403 ip_not_allowed can't be checked to be the right node, but tells what to fix. Anything else
+     * without the User-Agent, or with another token id, is wrong_node.
+     *
+     * @param  mixed  $body  the decoded JSON of the answer, null if it is none
+     */
+    public static function identityError(string $userAgent, string $tokenId, int $status, mixed $body): ?string
+    {
+        if (preg_match(self::USER_AGENT_PATTERN, $userAgent, $matches)) {
+            return hash_equals($tokenId, $matches[1]) ? null : BridgeException::WRONG_NODE;
+        }
+
+        if ($status === 403 && is_array($body) && ($body['error'] ?? null) === BridgeException::IP_NOT_ALLOWED) {
+            return BridgeException::IP_NOT_ALLOWED;
+        }
+
+        return BridgeException::WRONG_NODE;
     }
 
     /**

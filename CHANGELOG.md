@@ -11,6 +11,7 @@ Together with MPA Bridge 1.1.0, which has a token of its own and serves https by
 - Bridge token per node in the tab MPA Bridge (a password field, stored encrypted, never shown again; empty keeps the stored one). _Test connection_ uses the address and token in the fields, or the stored token
 - Certificate pin per node in the tab MPA Bridge (`sha256//…`, printed by `install.sh` and `mpa-bridge -fingerprint`, not secret). With a pin the panel checks the bridge's certificate by its key instead of the CA store, so the self-signed certificate the bridge creates is accepted, and no other. _Test connection_ uses the pin in the field, or the stored one
 - Clear errors when the certificate doesn't match the pin, when a certificate without pin isn't signed by a known CA, and when an http address reaches a bridge that serves https
+- A clear error when a bridge refuses the panel's IP: MPA Bridge 1.1.0 no longer tells an address outside its `allowed_ips` its version and the node's token id, so instead of _wrong node_ the panel says that a bridge answered which can't be verified, and to add the panel's IP to `allowed_ips`
 
 ### Changed
 

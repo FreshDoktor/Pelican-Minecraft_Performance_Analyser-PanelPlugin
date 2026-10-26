@@ -42,6 +42,12 @@ class BridgeException extends Exception
     /** Something answered that is not the bridge of this node (User-Agent missing or for another token). */
     public const WRONG_NODE = 'wrong_node';
 
+    /**
+     * An MPA Bridge refuses the panel's IP (403 ip_not_allowed). It sends no User-Agent then, so whether it
+     * is the bridge of this node can't be checked. The same code as the bridge's own.
+     */
+    public const IP_NOT_ALLOWED = 'ip_not_allowed';
+
     /** The answer was no JSON or had another form than expected. */
     public const INVALID_RESPONSE = 'invalid_response';
 
