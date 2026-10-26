@@ -152,6 +152,27 @@ class ProfileAnalyzerTest extends TestCase
         $this->assertSame([null, null], $classify('[unknown_Java];I2C/C2I adapters'));
     }
 
+    public function test_a_server_paused_by_a_mod_in_run_server_is_idle(): void
+    {
+        $analyzer = new ProfileAnalyzer;
+        $classify = fn (string $stack) => $analyzer->classify(explode(';', $stack));
+        $server = 'net/minecraft/server/MinecraftServer.';
+
+        // Tick Stasis (Fabric) parks the Server thread in a mixin of runServer while nobody is online, real stack.
+        $this->assertSame(['idle', 'intermediary'], $classify('java/lang/Thread.run;net/minecraft/server/MinecraftServer$$Lambda.0x00007727f95ad8d8.run;'.$server.'method_29739;'
+            .$server.'method_29741;'.$server.'redirect$dpk000$tick-stasis$waitUntilResumed;java/util/concurrent/locks/LockSupport.park;jdk/internal/misc/Unsafe.park;Unsafe_Park;Parker::park;pthread_cond_wait'));
+        $this->assertSame(['idle', 'mojmap'], $classify(self::RUN.';com/example/Pause.hold;java/lang/Thread.sleep'));
+        $this->assertSame(['idle', 'srg'], $classify($server.'m_130011_;java/lang/Object.wait'));
+        $this->assertSame(['idle', 'mcp'], $classify($server.'func_240802_v_;java/util/concurrent/locks/LockSupport.parkNanos'));
+
+        // Not blocking, blocking inside the tick, or blocking in Minecraft's own code (loading the worlds at start).
+        $this->assertSame([null, null], $classify(self::RUN.';com/example/Mod.work'));
+        $this->assertSame(['tick', 'mojmap'], $classify(self::RUN.';'.$server.'tickServer;java/util/concurrent/locks/LockSupport.park'));
+        $this->assertSame([null, null], $classify($server.'method_29741;net/minecraft/class_3176.method_3823;'.$server.'method_3735;net/minecraft/class_3215.getChunkBlocking;'
+            .'net/minecraft/class_1255.method_20813;java/util/concurrent/locks/LockSupport.parkNanos'));
+        $this->assertSame([null, null], $classify(self::RUN.';'.$server.'loadLevel;java/lang/Object.wait'));
+    }
+
     public function test_without_known_tick_methods_the_tick_load_is_unknown(): void
     {
         $profile = self::profile([self::serverThread([

@@ -71,6 +71,28 @@ final class ProfileAnalyzer
      */
     public const LEGACY_IDLE = ['run', 'java/lang/Thread.sleep'];
 
+    /**
+     * runServer per mapping, the loop that calls the tick. A stack in it that blocks (BLOCKING) with only
+     * mod, JDK or mixin frames ($ in the method) in between is paused by a mod between two ticks, e.g. Tick
+     * Stasis parks the Server thread while nobody is online: idle. Minecraft's own code in between is work
+     * (loading the worlds at start).
+     */
+    public const RUN_LOOP = [
+        self::MAPPING_MOJMAP => 'runServer',
+        self::MAPPING_INTERMEDIARY => 'method_29741',
+        self::MAPPING_SRG => 'm_130011_',
+        self::MAPPING_MCP => 'func_240802_v_',
+    ];
+
+    /** Frames of a thread that blocks (park, sleep, wait), as prefixes. */
+    public const BLOCKING = [
+        'java/util/concurrent/locks/LockSupport.park',
+        'jdk/internal/misc/Unsafe.park',
+        'sun/misc/Unsafe.park',
+        'java/lang/Thread.sleep',
+        'java/lang/Object.wait',
+    ];
+
     public const TOP_METHODS = 30;
 
     public const STATE_OK = 'ok';
@@ -353,17 +375,30 @@ final class ProfileAnalyzer
 
     /**
      * The first tick or idle frame of MinecraftServer in a stack (root first), and the mapping it is named
-     * in. [null, null] when there is none, e.g. a stack the profiler couldn't walk ([unknown_Java]).
+     * in. Without one, a stack paused in runServer (RUN_LOOP) is idle. [null, null] when nothing decides,
+     * e.g. a stack the profiler couldn't walk ([unknown_Java]).
      *
      * @param  list<string>  $frames
      * @return array{0: 'tick'|'idle'|null, 1: string|null}
      */
     public function classify(array $frames): array
     {
+        // Mapping of runServer while only mod, JDK or mixin frames followed it.
+        $run = null;
+        $ranOut = false;
+
         foreach ($frames as $i => $frame) {
             [$class, $method] = ModPackageIndex::split($frame);
 
             if ($class === null || $method === null || !str_ends_with($class, '/MinecraftServer')) {
+                if ($run !== null && $this->blocks($frame)) {
+                    return ['idle', $run];
+                }
+
+                if (str_starts_with($frame, 'net/minecraft/')) {
+                    $run = null;
+                }
+
                 continue;
             }
 
@@ -378,9 +413,28 @@ final class ProfileAnalyzer
                     }
                 }
             }
+
+            $loop = $ranOut ? false : array_search($method, self::RUN_LOOP, true);
+
+            if ($loop !== false) {
+                [$run, $ranOut] = [$loop, true];
+            } elseif (!str_contains($method, '$')) {
+                $run = null;
+            }
         }
 
         return [null, null];
+    }
+
+    protected function blocks(string $frame): bool
+    {
+        foreach (self::BLOCKING as $prefix) {
+            if (str_starts_with($frame, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
