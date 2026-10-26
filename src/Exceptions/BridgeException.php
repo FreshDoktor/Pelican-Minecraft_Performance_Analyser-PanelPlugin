@@ -18,6 +18,18 @@ class BridgeException extends Exception
     /** No address or no token is set for the node's bridge, so the panel didn't contact the node at all. */
     public const NOT_CONFIGURED = 'not_configured';
 
+    /** The address is http to a host name or a public IP, so the panel didn't send the token there (see BridgeAddress). */
+    public const INSECURE_URL = 'insecure_url';
+
+    /** The certificate pin set for the node has another form than mpa-bridge -fingerprint prints, nothing was sent. */
+    public const INVALID_PIN = 'invalid_pin';
+
+    /** The certificate of the bridge has another key than the pin set for the node (cURL error 90). */
+    public const PIN_MISMATCH = 'pin_mismatch';
+
+    /** No pin is set and the certificate isn't trusted: e.g. the bridge's self-signed one, or for another name (cURL error 60). */
+    public const CERTIFICATE_UNTRUSTED = 'certificate_untrusted';
+
     /** No connection: no bridge on the node, a wrong address or a firewall in between. */
     public const UNREACHABLE = 'unreachable';
 

@@ -13,12 +13,15 @@ use Illuminate\Support\Facades\Cache;
  * The address and the token of the MPA Bridge of a node, set in the admin area on the node's page (see
  * NodeBridgeTab). A node has a bridge only with both: without them the panel never contacts the node, see
  * BridgeClient. The token is the bridge's own (token in mpa-bridge.yml, printed by install.sh), never the
- * token of Wings. It is stored encrypted like daemon_token and never shown again.
+ * token of Wings. It is stored encrypted like daemon_token and never shown again. The certificate pin
+ * (mpa-bridge -fingerprint, printed by install.sh) is optional and not secret: with it the panel checks the
+ * bridge's certificate by its key instead of the CA store, so the bridge's self-signed certificate passes.
  *
  * @property int $id
  * @property int $node_id
  * @property string $url
  * @property string|null $token
+ * @property string|null $tls_pin
  * @property CarbonImmutable $created_at
  * @property CarbonImmutable $updated_at
  * @property-read Node $node
@@ -31,6 +34,7 @@ class NodeBridge extends Model
         'node_id',
         'url',
         'token',
+        'tls_pin',
     ];
 
     protected $hidden = [
@@ -62,6 +66,11 @@ class NodeBridge extends Model
         return static::query()->where('node_id', $node->id)->value('url');
     }
 
+    public static function pinFor(Node $node): ?string
+    {
+        return static::query()->where('node_id', $node->id)->value('tls_pin');
+    }
+
     /**
      * Whether a token is stored for the node, for the placeholder of the form. The token itself isn't read.
      */
@@ -79,13 +88,15 @@ class NodeBridge extends Model
     }
 
     /**
-     * Save the address and the token of a node's bridge. An empty token keeps the stored one, an empty
-     * address removes both: the node has no bridge then.
+     * Save the address, the token and the certificate pin of a node's bridge. An empty token keeps the stored
+     * one, an empty pin removes it (the form shows the stored pin), an empty address removes all of them: the
+     * node has no bridge then.
      */
-    public static function saveFor(Node $node, ?string $url, ?string $token = null): void
+    public static function saveFor(Node $node, ?string $url, ?string $token = null, ?string $pin = null): void
     {
         $url = static::normalize($url);
         $token = static::normalizeToken($token);
+        $pin = static::normalizePin($pin);
 
         // Another address may be another bridge, the console asks it again for the tick monitor.
         Cache::forget(TickMonitor::nodeCacheKey($node));
@@ -96,7 +107,7 @@ class NodeBridge extends Model
             return;
         }
 
-        static::query()->updateOrCreate(['node_id' => $node->id], ['url' => $url, ...($token === null ? [] : ['token' => $token])]);
+        static::query()->updateOrCreate(['node_id' => $node->id], ['url' => $url, 'tls_pin' => $pin, ...($token === null ? [] : ['token' => $token])]);
     }
 
     /**
@@ -117,5 +128,15 @@ class NodeBridge extends Model
         $token = trim((string) $token);
 
         return $token === '' ? null : $token;
+    }
+
+    /**
+     * Trimmed, null if empty. The form is checked by the form and by BridgeClient (BridgeAddress::isValidPin()).
+     */
+    public static function normalizePin(?string $pin): ?string
+    {
+        $pin = trim((string) $pin);
+
+        return $pin === '' ? null : $pin;
     }
 }

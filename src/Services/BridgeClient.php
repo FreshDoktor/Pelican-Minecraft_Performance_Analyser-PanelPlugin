@@ -7,6 +7,7 @@ use App\Models\Server;
 use FreshDoktor\MinecraftPerformanceAnalyser\Exceptions\BridgeException;
 use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Models\NodeBridge;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\BridgeAddress;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -22,10 +23,11 @@ use Illuminate\Support\Facades\Lang;
  * Built like Pelican's Http::daemon() macro (AppServiceProvider) and DaemonRepository: a token as
  * Bearer, and every answer has to carry the User-Agent "MPA Bridge/v<version> (id:<token id>)" with the
  * token id of this node, so the panel knows it talks to the bridge of the right node. Unlike Wings the
- * bridge has its own address and its own token per node (see NodeBridge), never the token of Wings, and
- * TLS is only checked when that address is https. A node without both has no bridge: no request is sent
- * then (not_configured), the token only goes to the address the admin set for it, and redirects are not
- * followed.
+ * bridge has its own address and its own token per node (see NodeBridge), never the token of Wings. A
+ * node without both has no bridge: no request is sent then (not_configured), the token only goes to the
+ * address the admin set for it, and redirects are not followed. Addresses are https (the bridge serves it
+ * by default), the certificate checked by the pin set for the node, else against the CA store; plain
+ * http only to loopback and private addresses (BridgeAddress), else nothing is sent (insecure_url).
  *
  * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 3c5b97b (bridge 1.1.0, its own
  * token instead of the one of Wings). Unknown fields are ignored, as the contract asks.
@@ -86,13 +88,14 @@ class BridgeClient
      *
      * @param  string|null  $baseUrl  the address to ask, null for the saved one
      * @param  string|null  $token  the token to send, null for the saved one
+     * @param  string|null  $pin  the certificate pin to check, null for the saved one
      * @return array<string, mixed>
      *
      * @throws BridgeException
      */
-    public function nodeStatus(Node $node, ?string $baseUrl = null, ?string $token = null): array
+    public function nodeStatus(Node $node, ?string $baseUrl = null, ?string $token = null, ?string $pin = null): array
     {
-        return $this->send($node, 'GET', self::API_PREFIX.'/status', baseUrl: $baseUrl, token: $token);
+        return $this->send($node, 'GET', self::API_PREFIX.'/status', baseUrl: $baseUrl, token: $token, pin: $pin);
     }
 
     /**
@@ -249,13 +252,14 @@ class BridgeClient
      * @param  array<string, mixed>  $options  Guzzle options (query, json)
      * @param  string|null  $baseUrl  another address than the saved one, e.g. one to test before saving it
      * @param  string|null  $token  another token than the saved one, e.g. one to test before saving it
+     * @param  string|null  $pin  another certificate pin than the saved one, e.g. one to test before saving it
      * @return array<mixed>
      *
      * @throws BridgeException
      */
-    public function send(Node $node, string $method, string $path, array $options = [], ?int $timeout = null, ?string $baseUrl = null, ?string $token = null): array
+    public function send(Node $node, string $method, string $path, array $options = [], ?int $timeout = null, ?string $baseUrl = null, ?string $token = null, ?string $pin = null): array
     {
-        $response = $this->request($node, $method, $path, $options, $timeout, $baseUrl, $token);
+        $response = $this->request($node, $method, $path, $options, $timeout, $baseUrl, $token, $pin);
 
         if ($response->failed()) {
             throw $this->toException($response);
@@ -307,33 +311,54 @@ class BridgeClient
 
     /**
      * Send a request and make sure the bridge of this node answered it, whatever the status. Without an
-     * address and a token nothing is sent: the token must never go to an address nobody set for it.
+     * address and a token nothing is sent: the token must never go to an address nobody set for it, nor in
+     * cleartext over plain http to a host that may be anywhere.
      *
      * @param  array<string, mixed>  $options
      *
      * @throws BridgeException
      */
-    protected function request(Node $node, string $method, string $path, array $options, ?int $timeout, ?string $baseUrl, ?string $token): Response
+    protected function request(Node $node, string $method, string $path, array $options, ?int $timeout, ?string $baseUrl, ?string $token, ?string $pin = null): Response
     {
         $baseUrl = NodeBridge::normalize($baseUrl) ?? $this->baseUrl($node);
         $token = NodeBridge::normalizeToken($token) ?? NodeBridge::normalizeToken($this->bridgeFor($node)?->token);
+        $pin = NodeBridge::normalizePin($pin) ?? NodeBridge::normalizePin($this->bridgeFor($node)?->tls_pin);
 
         if ($this->isFake()) {
             // The fake mode answers every request itself, it needs no bridge set for the node.
-            [$baseUrl, $token] = [$baseUrl ?? self::FAKE_URL, $token ?? ''];
+            [$baseUrl, $token, $pin] = [$baseUrl ?? self::FAKE_URL, $token ?? '', null];
         } elseif ($baseUrl === null || $token === null) {
             throw new BridgeException(BridgeException::NOT_CONFIGURED, $this->trans('errors.not_configured'));
+        } elseif (!BridgeAddress::isAllowed($baseUrl)) {
+            throw new BridgeException(BridgeException::INSECURE_URL, $this->trans('errors.insecure_url', ['url' => $baseUrl]));
+        } elseif ($pin !== null && !BridgeAddress::isValidPin($pin)) {
+            throw new BridgeException(BridgeException::INVALID_PIN, $this->trans('errors.invalid_pin'));
         }
 
         try {
-            $response = $this->http($node, $baseUrl, $token, $timeout)->send($method, $path, $options);
+            $response = $this->http($node, $baseUrl, $token, $timeout, $pin)->send($method, $path, $options);
         } catch (ConnectionException $exception) {
             // cURL error 28: connected, but no answer in time. The bridge is there, it is just slow (a long heap walk).
             if (str_contains($exception->getMessage(), 'cURL error 28') && !str_contains($exception->getMessage(), 'Connection timed out')) {
                 throw new BridgeException(BridgeException::TIMEOUT, $this->trans('errors.timeout', ['url' => $baseUrl]), previous: $exception);
             }
 
+            // cURL error 90: the key of the certificate is not the pinned one. Another service, or someone in between.
+            if (str_contains($exception->getMessage(), 'cURL error 90')) {
+                throw new BridgeException(BridgeException::PIN_MISMATCH, $this->trans('errors.pin_mismatch', ['url' => $baseUrl]), previous: $exception);
+            }
+
+            // cURL error 60: no pin, and the certificate isn't trusted, e.g. the bridge's self-signed one, or another name.
+            if (str_contains($exception->getMessage(), 'cURL error 60')) {
+                throw new BridgeException(BridgeException::CERTIFICATE_UNTRUSTED, $this->trans('errors.certificate_untrusted', ['url' => $baseUrl]), previous: $exception);
+            }
+
             throw new BridgeException(BridgeException::UNREACHABLE, $this->trans('errors.unreachable', ['url' => $baseUrl]), previous: $exception);
+        }
+
+        // The bridge serves https and Go's server answers a plain http request with this 400, without a User-Agent.
+        if ($response->status() === 400 && str_contains($response->body(), 'HTTP request to an HTTPS server')) {
+            throw new BridgeException(BridgeException::INSECURE_URL, $this->trans('errors.https_required', ['url' => $baseUrl]), 400);
         }
 
         // Before anything else: an error page of some other service must not pass for an error of the bridge.
@@ -342,7 +367,7 @@ class BridgeClient
         return $response;
     }
 
-    protected function http(Node $node, string $baseUrl, string $token, ?int $timeout): PendingRequest
+    protected function http(Node $node, string $baseUrl, string $token, ?int $timeout, ?string $pin = null): PendingRequest
     {
         // A redirect would take the token along to another address.
         $request = Http::acceptJson()
@@ -352,7 +377,16 @@ class BridgeClient
             ->connectTimeout((int) config(MinecraftPerformanceAnalyserPlugin::ID.'.connect_timeout', 3))
             ->baseUrl($baseUrl);
 
-        if (str_starts_with(strtolower($baseUrl), 'https://')) {
+        if (str_starts_with(strtolower($baseUrl), 'https://') && $pin !== null) {
+            // Without cURL Guzzle would ignore the pin and, without verify, accept any certificate.
+            if (!defined('CURLOPT_PINNEDPUBLICKEY')) {
+                throw new BridgeException(BridgeException::INVALID_PIN, $this->trans('errors.pin_without_curl'));
+            }
+
+            // The pin replaces the check against the CA store, so the bridge's self-signed certificate passes:
+            // cURL compares the key of the certificate with the pin also without verify, and refuses any other.
+            $request->withOptions(['verify' => false, 'curl' => [CURLOPT_PINNEDPUBLICKEY => $pin]]);
+        } elseif (str_starts_with(strtolower($baseUrl), 'https://')) {
             $request->withOptions(['verify' => (bool) config(MinecraftPerformanceAnalyserPlugin::ID.'.verify_tls', true)]);
         }
 

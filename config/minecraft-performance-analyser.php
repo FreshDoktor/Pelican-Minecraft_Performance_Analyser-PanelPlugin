@@ -22,7 +22,8 @@ return [
     // them (from Mojang, maven.fabricmc.net and maven.minecraftforge.net) and keeps the names on its local disk.
     'readable_names' => (bool) env('MPA_READABLE_NAMES', true),
 
-    // Whether the certificate of a bridge reached over https is checked. Bridges reached over http have none.
+    // Whether the certificate of a bridge reached over https is checked against the CA store, for nodes without a
+    // certificate pin. With a pin the panel checks the key of the certificate instead, so a self-signed one passes.
     'verify_tls' => (bool) env('MPA_BRIDGE_VERIFY_TLS', true),
 
     // Development only: answer every request with the examples in resources/fake-bridge instead of asking
