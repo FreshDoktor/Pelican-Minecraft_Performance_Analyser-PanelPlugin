@@ -9,12 +9,15 @@ use FreshDoktor\MinecraftPerformanceAnalyser\MinecraftPerformanceAnalyserPlugin;
 use FreshDoktor\MinecraftPerformanceAnalyser\Models\NodeBridge;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\BridgeAddress;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
+use FreshDoktor\MinecraftPerformanceAnalyser\Support\PinningCurlFactory;
+use GuzzleHttp\Handler\CurlHandler;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Lang;
+use UnexpectedValueException;
 
 /**
  * Talks to the MPA Bridge on the node of a server, always from the panel, never from the browser, so
@@ -377,6 +380,9 @@ class BridgeClient
             }
 
             throw new BridgeException(BridgeException::UNREACHABLE, $this->trans('errors.unreachable', ['url' => $baseUrl]), previous: $exception);
+        } catch (UnexpectedValueException $exception) {
+            // PinningCurlFactory: this cURL can't pin, nothing was sent.
+            throw new BridgeException(BridgeException::INVALID_PIN, $this->trans('errors.pin_without_curl'), previous: $exception);
         }
 
         // The bridge serves https and Go's server answers a plain http request with this 400, without a User-Agent.
@@ -408,7 +414,9 @@ class BridgeClient
 
             // The pin replaces the check against the CA store, so the bridge's self-signed certificate passes:
             // cURL compares the key of the certificate with the pin also without verify, and refuses any other.
-            $request->withOptions(['verify' => false, 'curl' => [CURLOPT_PINNEDPUBLICKEY => $pin]]);
+            // Guzzle 8 refuses CURLOPT_PINNEDPUBLICKEY in the "curl" option, the handle factory sets it instead.
+            $request->withOptions(['verify' => false])
+                ->setHandler(new CurlHandler(['handle_factory' => new PinningCurlFactory($pin)]));
         } elseif (str_starts_with(strtolower($baseUrl), 'https://')) {
             $request->withOptions(['verify' => (bool) config(MinecraftPerformanceAnalyserPlugin::ID.'.verify_tls', true)]);
         }
