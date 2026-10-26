@@ -2,7 +2,7 @@
 
 Server lagging and nobody knows why? This plugin looks under the hood of a Minecraft server, right in the panel. It shows how the server is doing, finds out which mod eats the tick time, and points out settings that hold the server back. No extra mods or plugins on the server, nothing to set up in the game, and the server barely notices it's being watched.
 
-> **Heads up:** this plugin does nothing on its own. It needs the [MPA Bridge](https://github.com/FreshDoktor/Pelican-Minecraft_Performance_Analyser-WingPlugin) installed on every Wings node that runs Minecraft servers. One script, one question, done.
+> **Heads up:** this plugin does nothing on its own. It needs the [MPA Bridge](https://github.com/FreshDoktor/Pelican-Minecraft_Performance_Analyser-WingPlugin) installed on every Wings node that runs Minecraft servers. One script on the node, then paste the address, token and pin it prints into the node's settings, done.
 
 ## Features
 
@@ -13,4 +13,5 @@ Server lagging and nobody knows why? This plugin looks under the hood of a Minec
 - **Diagnosis**: hints like "Java too old for this Minecraft version" or "RAM limit too tight for Xmx"
 - **Live heap and garbage collection** at a glance
 - Works with **Vanilla, Paper, Fabric, Forge and NeoForge**, readable method names included
+- **Secure by default**: its own token per node (never the one of Wings), HTTPS with a pinned certificate, and a locked-down service on the node
 - **Subuser permissions**, activity log, English and German
