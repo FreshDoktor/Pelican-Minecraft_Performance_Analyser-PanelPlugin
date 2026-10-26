@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 - 2026-10-26
+
+### Added
+
+- Readable method names in the lag analysis of Fabric and Forge servers, which run with ids instead of names: `ServerLevel.tick` instead of `class_3218.method_18765`, `m_8793_` or `func_72835_b`. The first time a profile needs them, the panel downloads the mappings of the server's Minecraft version on the queue (Fabric's intermediary with Mojang's server mappings, Forge 1.17 to 1.20 MCPConfig with Mojang's server mappings, Forge up to 1.16 MCP's names) from Mojang, maven.fabricmc.net and maven.minecraftforge.net, and keeps only the names on its local disk, once per Minecraft version for all servers. The top methods and the flamegraph show them, hovering a method shows the name the server runs it as. What is counted doesn't change. Stored profiles remember the Minecraft version they ran with. Off with `MPA_READABLE_NAMES=false`, for panels without internet access
+
 ## 0.3.2 - 2026-10-26
 
 ### Changed

@@ -157,6 +157,7 @@ class MethodNamesTest extends TestCase
             'method_18765' => 'tick',
             'method_30092' => 'setBlock',
             'method_3748' => 'tickServer',
+            'method_47541' => 'lambda$getEntities$14',
         ]);
 
         $readable = $names->apply($analysis);
@@ -174,7 +175,7 @@ class MethodNamesTest extends TestCase
 
         $top = array_column($readable['top_methods'], null, 'frame');
         $this->assertArrayNotHasKey('raw_frame', $top['straywave/minecraft/immersivesnow/Utils.setBlock']);
-        $this->assertSame('net/minecraft/class_1937.method_30092', $top['net/minecraft/world/level/Level.setBlock']['raw_frame'] ?? null);
+        $this->assertSame('net/minecraft/class_3218.method_47541', $top['net/minecraft/server/level/ServerLevel.lambda$getEntities$14']['raw_frame'] ?? null);
     }
 
     /**

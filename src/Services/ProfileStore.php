@@ -15,8 +15,8 @@ use Throwable;
  * forgets a result after 15 minutes, these are for looking at again, comparing and downloading.
  *
  * A file holds the profile object of the bridge as it came (the raw profile for the download), who
- * started it and the Minecraft version the server ran (for the readable method names, MethodNameService). The share per mod is worked out anew when a profile is opened, so it uses the current
- * package index.
+ * started it and the Minecraft version the server ran (for the readable method names, MethodNameService).
+ * The share per mod is worked out anew when a profile is opened, so it uses the current package index.
  *
  * @phpstan-type StoredProfile array{key: string, id: string, mode: string, seconds: int, started_at: int, user: ?string, state: string}
  */
