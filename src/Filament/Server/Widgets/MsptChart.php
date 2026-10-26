@@ -38,6 +38,11 @@ class MsptChart extends TickChart
 
     protected function hint(array $current): ?string
     {
-        return $this->trans($current['mspt'] === null && !$current['overloaded'] ? 'mspt_catching_up' : 'mspt_hint');
+        return $this->trans(match (true) {
+            $current['mspt'] === null && !$current['overloaded'] => 'mspt_unknown',
+            // From the busy time of the Server thread (bridge 0.3.0); overloaded it is the window per tick.
+            $current['method'] === 'counting' && !$current['overloaded'] => 'mspt_busy',
+            default => 'mspt_hint',
+        });
     }
 }

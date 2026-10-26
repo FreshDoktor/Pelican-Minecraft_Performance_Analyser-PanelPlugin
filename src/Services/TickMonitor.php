@@ -22,14 +22,20 @@ use Throwable;
  */
 class TickMonitor
 {
-    /** Seconds the features of a node's bridge are kept, also "no bridge". Saving the bridge address forgets them. */
+    /** Seconds the features of a node's bridge are kept. Saving the bridge address forgets them. */
     public const NODE_CACHE_SECONDS = 300;
+
+    /** Seconds "no bridge answers" is kept: a bridge that is just restarting is asked again soon. */
+    public const NODE_FAILED_CACHE_SECONDS = 30;
 
     /** Seconds an answer of GET /ticks is shared, both widgets poll every 5 s. */
     public const SHARE_SECONDS = 4;
 
     /** A JVM that runs this long and still shows no tick loop has none the bridge knows (an obfuscated version). */
     public const UNSUPPORTED_AFTER_MS = 600_000;
+
+    /** Milliseconds the tick monitor must have looked before its "unsupported" counts, not a single window. */
+    public const UNSUPPORTED_MONITOR_MS = 60_000;
 
     /** Seconds such a JVM is remembered, the widgets stay away for it the next time the console opens. */
     public const UNSUPPORTED_KEEP_SECONDS = 86_400;
@@ -77,21 +83,25 @@ class TickMonitor
 
     public function nodeHasTicks(Node $node): bool
     {
-        $features = Cache::remember(self::nodeCacheKey($node), self::NODE_CACHE_SECONDS, function () use ($node) {
+        $features = Cache::get(self::nodeCacheKey($node));
+
+        if (!is_array($features)) {
+            $failed = false;
+
             try {
                 $features = $this->bridge->nodeStatus($node)['features'] ?? [];
-
-                return is_array($features) ? array_values(array_filter($features, 'is_string')) : [];
+                $features = is_array($features) ? array_values(array_filter($features, 'is_string')) : [];
             } catch (BridgeException) {
-                return [];
+                [$features, $failed] = [[], true];
             } catch (Throwable $exception) {
                 report($exception);
-
-                return [];
+                [$features, $failed] = [[], true];
             }
-        });
 
-        return is_array($features) && in_array(Capabilities::FEATURES[Capabilities::TICKS], $features, true);
+            Cache::put(self::nodeCacheKey($node), $features, $failed ? self::NODE_FAILED_CACHE_SECONDS : self::NODE_CACHE_SECONDS);
+        }
+
+        return in_array(Capabilities::FEATURES[Capabilities::TICKS], $features, true);
     }
 
     public static function nodeCacheKey(Node $node): string
@@ -144,7 +154,7 @@ class TickMonitor
             // The clock of the node, like the start of the JVM.
             $now = is_int($ticks['sampled_at'] ?? null) ? $ticks['sampled_at'] : (int) floor(microtime(true) * 1000);
 
-            if (TickSeries::unsupportedForGood($ticks, $jvmStartedAt, $now, self::UNSUPPORTED_AFTER_MS)) {
+            if (TickSeries::unsupportedForGood($ticks, $jvmStartedAt, $now, self::UNSUPPORTED_AFTER_MS, self::UNSUPPORTED_MONITOR_MS)) {
                 Cache::put($key, $jvmStartedAt, self::UNSUPPORTED_KEEP_SECONDS);
             }
         } elseif (in_array($state, ['ok', 'paused'], true) && Cache::has($key)) {

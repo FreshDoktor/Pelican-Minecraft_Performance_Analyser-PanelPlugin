@@ -3,14 +3,15 @@
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Support;
 
 /**
- * What the widgets under the console show of an answer of GET /ticks (docs/API.md of the bridge, wing
- * commit 67a8f92): the current TPS and MSPT, how bad they are, and the history for the chart. Plain PHP,
- * so it is tested without Laravel.
+ * What the widgets under the console show of an answer of GET /ticks (docs/API.md of the bridge 0.3.0):
+ * the current TPS and MSPT, how bad they are, and the history for the chart. Plain PHP, so it is tested
+ * without Laravel.
  *
- * The values are approximate: while the server keeps up, the bridge samples the Server thread and
- * assumes 20 TPS, MSPT is the share of tick work times 50 ms. Only once it is overloaded does it count
- * the ticks. Windows without values (paused, a lag analysis running, an overloaded sampling window) are
- * gaps in the chart, never 0.
+ * The bridge samples the Server thread in the first window of a monitor (20 TPS assumed, MSPT is the share
+ * of tick work times 50 ms) and counts the ticks from then on: exact TPS, MSPT from the time the Server
+ * thread was busy. Bridges before 0.3.0 only count while the server is overloaded. Paused windows keep the
+ * values they have (a counting window does), so the line goes on; windows without values (a lag analysis
+ * running, an overloaded sampling window) are gaps in the chart, never 0.
  *
  * @phpstan-type Current array{state: string, reason: string|null, tps: float|null, mspt: float|null, load: float|null, overloaded: bool, method: string|null, level: string, stale: bool}
  * @phpstan-type Point array{t: int, v: float|null}
@@ -123,7 +124,7 @@ final class TickSeries
                 $points[] = ['t' => $previousEnd + 1, 'v' => null];
             }
 
-            $value = ($window['state'] ?? null) === 'ok' ? self::number($window[$field] ?? null) : null;
+            $value = in_array($window['state'] ?? null, ['ok', 'paused'], true) ? self::number($window[$field] ?? null) : null;
             $points[] = ['t' => $window['ended_at'], 'v' => $value];
             $previousEnd = $window['ended_at'];
         }
@@ -133,16 +134,21 @@ final class TickSeries
 
     /**
      * Whether a JVM has had long enough to show its tick loop: a server that is still loading its world
-     * has no Server thread or no tick method in its samples yet, a big modpack for minutes.
+     * has no Server thread or no tick method in its samples yet, a big modpack for minutes. The monitor
+     * itself must also have looked for a while, one odd window of a monitor that just started doesn't count.
      *
      * @param  array<string, mixed>  $ticks  answer of GET /ticks
      * @param  int|null  $jvmStartedAt  Unix ms, from GET /status
+     * @param  int  $monitorMs  how long the monitor must have run (monitor_started_at)
      */
-    public static function unsupportedForGood(array $ticks, ?int $jvmStartedAt, int $now, int $afterMs): bool
+    public static function unsupportedForGood(array $ticks, ?int $jvmStartedAt, int $now, int $afterMs, int $monitorMs = 0): bool
     {
+        $monitorStartedAt = $ticks['monitor_started_at'] ?? null;
+
         return ($ticks['state'] ?? null) === 'unsupported'
             && $jvmStartedAt !== null
-            && $now - $jvmStartedAt >= $afterMs;
+            && $now - $jvmStartedAt >= $afterMs
+            && ($monitorMs <= 0 || (is_int($monitorStartedAt) && $now - $monitorStartedAt >= $monitorMs));
     }
 
     /**

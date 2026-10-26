@@ -6,7 +6,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Support\TickSeries as T;
 use PHPUnit\Framework\TestCase;
 
 /**
- * What the widgets under the console show, from the example answers of GET /ticks (wing 67a8f92).
+ * What the widgets under the console show, from the example answers of GET /ticks (bridge 0.3.0).
  */
 class TickSeriesTest extends TestCase
 {
@@ -17,16 +17,16 @@ class TickSeriesTest extends TestCase
 
         $this->assertSame(T::STATE_VALUES, $current['state']);
         $this->assertSame(20.0, $current['tps']);
-        $this->assertSame(4.8, $current['mspt']);
-        $this->assertSame(9.6, $current['load']);
-        $this->assertSame('sampling', $current['method']);
+        $this->assertSame(4.82, $current['mspt']);
+        $this->assertSame(9.64, $current['load']);
+        $this->assertSame('counting', $current['method']);
         $this->assertSame(T::LEVEL_NORMAL, $current['level']);
         $this->assertFalse($current['stale']);
 
-        // Windows follow each other (5 ms apart): no gap.
-        $this->assertSame([4.2, 3.8, 4.8], array_column(T::points($ticks, T::MSPT), 'v'));
+        // Windows follow each other (5 ms apart, sampling then counting): no gap.
+        $this->assertSame([4.2, 4.46, 4.82], array_column(T::points($ticks, T::MSPT), 'v'));
         $this->assertSame([1792930104995, 1792930109995, 1792930114995], array_column(T::points($ticks, T::MSPT), 't'));
-        $this->assertSame([20.0, 20.0, 20.0], array_column(T::points($ticks, T::TPS), 'v'));
+        $this->assertSame([20.0, 20.02, 20.0], array_column(T::points($ticks, T::TPS), 'v'));
     }
 
     public function test_an_overloaded_server_is_counted(): void
@@ -41,14 +41,14 @@ class TickSeriesTest extends TestCase
         $this->assertSame(T::LEVEL_DANGER, $current['level']);
 
         // The overloaded sampling window knows neither: a gap, not 0.
-        $this->assertSame([20.0, null, 14.21, 14.4], array_column(T::points($ticks, T::TPS), 'v'));
-        $this->assertSame([37.8, null, 70.354, 69.444], array_column(T::points($ticks, T::MSPT), 'v'));
+        $this->assertSame([null, 14.21, 14.4], array_column(T::points($ticks, T::TPS), 'v'));
+        $this->assertSame([null, 70.354, 69.444], array_column(T::points($ticks, T::MSPT), 'v'));
     }
 
     public function test_an_overloaded_sampling_window_is_a_warning_without_numbers(): void
     {
         $ticks = DiagnosticsTest::example('ticks-overloaded');
-        $ticks['current'] = $ticks['history'][1];
+        $ticks['current'] = $ticks['history'][0];
         $current = T::current($ticks);
 
         $this->assertSame(T::STATE_VALUES, $current['state']);
@@ -89,7 +89,9 @@ class TickSeriesTest extends TestCase
             $this->assertSame(T::LEVEL_NORMAL, $current['level'], $example);
         }
 
-        $this->assertSame([null], array_column(T::points(DiagnosticsTest::example('ticks-paused'), T::TPS), 'v'));
+        // Paused: the counting window keeps its values, the line goes on.
+        $this->assertSame([null, 20.02], array_column(T::points(DiagnosticsTest::example('ticks-paused'), T::TPS), 'v'));
+        $this->assertSame([null, 0.05], array_column(T::points(DiagnosticsTest::example('ticks-paused'), T::MSPT), 'v'));
         $this->assertSame([], T::points(DiagnosticsTest::example('ticks-starting'), T::TPS));
         // The lag analysis is a gap after the last value.
         $this->assertSame([4.2, null], array_column(T::points(DiagnosticsTest::example('ticks-suspended'), T::MSPT), 'v'));
@@ -103,7 +105,7 @@ class TickSeriesTest extends TestCase
 
         $current = T::current($ticks);
         $this->assertSame(T::STATE_VALUES, $current['state']);
-        $this->assertSame(4.8, $current['mspt']);
+        $this->assertSame(4.82, $current['mspt']);
         $this->assertTrue($current['stale']);
 
         $ticks['history'] = [];
@@ -124,7 +126,7 @@ class TickSeriesTest extends TestCase
 
         $points = T::points($ticks, T::MSPT);
 
-        $this->assertSame([4.2, 3.8, null, 4.8], array_column($points, 'v'));
+        $this->assertSame([4.2, 4.46, null, 4.82], array_column($points, 'v'));
         $this->assertSame(1792930109996, $points[2]['t']);
     }
 
@@ -139,6 +141,11 @@ class TickSeriesTest extends TestCase
         $this->assertFalse(T::unsupportedForGood($unsupported, $now - 300000, $now, $after));
         $this->assertFalse(T::unsupportedForGood($unsupported, null, $now, $after));
         $this->assertFalse(T::unsupportedForGood(DiagnosticsTest::example('ticks'), $now - 3600000, $now, $after));
+        // A monitor that just started (the example's first window) doesn't decide yet.
+        $this->assertFalse(T::unsupportedForGood($unsupported, $now - $after, $now, $after, 60000));
+        $looked = ['monitor_started_at' => $now - 60000] + $unsupported;
+        $this->assertTrue(T::unsupportedForGood($looked, $now - $after, $now, $after, 60000));
+        $this->assertFalse(T::unsupportedForGood(['monitor_started_at' => null] + $unsupported, $now - $after, $now, $after, 60000));
     }
 
     public function test_every_state_has_a_text_in_both_languages(): void

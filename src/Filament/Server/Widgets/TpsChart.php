@@ -6,12 +6,16 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Support\Format;
 use FreshDoktor\MinecraftPerformanceAnalyser\Support\TickSeries;
 
 /**
- * Ticks per second under the console. While the server keeps up the bridge assumes 20 and the hint says
- * how busy the tick loop is; once it falls behind the bridge counts the ticks.
+ * Ticks per second under the console. The bridge counts them (from 0.3.0 after its first window, before
+ * only while the server falls behind); while it samples it assumes 20 and the hint says how busy the
+ * tick loop is.
  */
 class TpsChart extends TickChart
 {
     public const NAME = 'minecraft-performance-analyser.tps-chart';
+
+    /** Above this many counted TPS the server runs ticks it fell behind on back to back. */
+    public const CATCHING_UP_TPS = 20.5;
 
     protected function field(): string
     {
@@ -39,9 +43,14 @@ class TpsChart extends TickChart
 
     protected function hint(array $current): ?string
     {
+        $counting = $current['method'] === 'counting';
+
         return match (true) {
             $current['tps'] === null && $current['overloaded'] => $this->trans('tps_overloaded'),
-            $current['method'] === 'counting' => $this->trans($current['overloaded'] ? 'tps_counting' : 'tps_counting_ok'),
+            $counting && $current['overloaded'] => $this->trans('tps_counting'),
+            $counting && $current['tps'] !== null && $current['tps'] > self::CATCHING_UP_TPS => $this->trans('tps_catching_up'),
+            $counting && $current['load'] !== null => $this->trans('tps_counting_load', ['load' => Format::percent($current['load'])]),
+            $counting => $this->trans('tps_counting_ok'),
             $current['load'] !== null => $this->trans('tps_sampling', ['load' => Format::percent($current['load'])]),
             default => null,
         };

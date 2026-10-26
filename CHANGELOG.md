@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 - 2026-10-26
+
+### Changed
+
+- TPS and MSPT under the console are a continuous line. With MPA Bridge 0.3.0 the ticks are counted all the time instead of only while the server falls behind, so the TPS are exact, also above 20 while the server catches up after a lag. MSPT is the time the Server thread works on a tick, waiting for a CPU (the container's CPU limit) and GC pauses included. The hint under TPS says how busy the Server thread is. Before, switching between estimating and counting left gaps of up to 30 seconds
+- A paused server (nobody online) keeps its line in the chart, the heading still says it is paused
+
+## 0.2.3 - 2026-10-26
+
+### Fixed
+
+- TPS and MSPT under the console no longer stay away for minutes after the bridge was restarted. When no bridge answered, the panel remembered that for 5 minutes, now for 30 seconds
+- A single "unsupported" answer of a tick monitor that had just started no longer hides TPS and MSPT for a day. The monitor must have looked for at least a minute first (and the JVM must still be older than 10 minutes, as before)
+
 ## 0.2.2 - 2026-10-26
 
 ### Added
