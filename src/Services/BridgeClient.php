@@ -29,8 +29,8 @@ use Illuminate\Support\Facades\Lang;
  * by default), the certificate checked by the pin set for the node, else against the CA store; plain
  * http only to loopback and private addresses (BridgeAddress), else nothing is sent (insecure_url).
  *
- * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 3c5b97b (bridge 1.1.0, its own
- * token instead of the one of Wings). Unknown fields are ignored, as the contract asks.
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit cc41d64 (bridge 1.1.0, its own
+ * token instead of the one of Wings, https by default). Unknown fields are ignored, as the contract asks.
  */
 class BridgeClient
 {
@@ -39,7 +39,7 @@ class BridgeClient
     public const API_VERSION = 1;
 
     /** Commit of docs/API.md in the bridge repo this client was written against. */
-    public const CONTRACT = '3c5b97b';
+    public const CONTRACT = 'cc41d64';
 
     /** Address the fake mode plays, it needs no bridge set for the node. */
     public const FAKE_URL = 'http://mpa-bridge.fake';
