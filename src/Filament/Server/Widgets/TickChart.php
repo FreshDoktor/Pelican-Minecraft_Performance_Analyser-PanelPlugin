@@ -151,13 +151,25 @@ abstract class TickChart extends ChartWidget
             'spanGaps' => false,
         ];
 
+        // Gaps (a lag analysis, a window without values) as a dashed line at the last value.
+        $gaps = [
+            'label' => $this->trans('not_measured'),
+            'data' => TickSeries::filled($points),
+            'borderDash' => [6, 6],
+            'borderWidth' => 1.5,
+            'pointRadius' => 0,
+            'fill' => false,
+            'tension' => 0,
+            'spanGaps' => false,
+        ];
+
         // Normal keeps the line color of the theme, like Pelican's charts.
         if ($level !== TickSeries::LEVEL_NORMAL) {
-            $dataset['borderColor'] = "rgb($rgb)";
+            $dataset['borderColor'] = $gaps['borderColor'] = "rgb($rgb)";
         }
 
         return [
-            'datasets' => [$dataset],
+            'datasets' => [$dataset, $gaps],
             'labels' => array_map(fn (array $point) => $this->time($point['t']), $points),
             'locale' => user()?->language ?? 'en',
         ];

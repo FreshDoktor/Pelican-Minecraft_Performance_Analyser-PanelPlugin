@@ -3,17 +3,19 @@
 namespace FreshDoktor\MinecraftPerformanceAnalyser\Support;
 
 /**
- * What the widgets under the console show of an answer of GET /ticks (docs/API.md of the bridge 0.3.0):
+ * What the widgets under the console show of an answer of GET /ticks (docs/API.md of the bridge 0.3.1):
  * the current TPS and MSPT, how bad they are, and the history for the chart. Plain PHP, so it is tested
  * without Laravel.
  *
  * The bridge samples the Server thread in the first window of a monitor (20 TPS assumed, MSPT is the share
  * of tick work times 50 ms) and counts the ticks from then on: exact TPS, MSPT from the time the Server
- * thread was busy. Bridges before 0.3.0 only count while the server is overloaded. Paused windows keep the
- * values they have (a counting window does), so the line goes on; windows without values (a lag analysis
- * running, an overloaded sampling window) are gaps in the chart, never 0.
+ * thread was busy. Bridges before 0.3.0 only count while the server is overloaded. Idle windows (the
+ * Server thread has hardly anything to do: nobody online, or paused; "paused" up to bridge 0.3.0) keep the
+ * values they have (a counting window does). Windows without values (a lag analysis running, an
+ * overloaded sampling window) are gaps in the line, never 0; filled() bridges them with the last value
+ * for a dashed line.
  *
- * @phpstan-type Current array{state: string, reason: string|null, tps: float|null, mspt: float|null, load: float|null, overloaded: bool, method: string|null, level: string, stale: bool}
+ * @phpstan-type Current array{state: string, reason: string|null, tps: float|null, mspt: float|null, load: float|null, overloaded: bool, idle: bool, method: string|null, level: string, stale: bool}
  * @phpstan-type Point array{t: int, v: float|null}
  */
 final class TickSeries
@@ -33,7 +35,10 @@ final class TickSeries
     public const STATE_VALUES = 'values';
 
     /** States of the answer that show a text instead of values, strings.ticks.states.<state>. */
-    public const STATES = ['starting', 'paused', 'suspended', 'unsupported', 'error'];
+    public const STATES = ['starting', 'idle', 'suspended', 'unsupported', 'error'];
+
+    /** Window states with values for the chart; paused is idle of bridges up to 0.3.0. */
+    private const WITH_VALUES = ['ok', 'idle', 'paused'];
 
     /** Fields of a window the charts show. */
     public const TPS = 'tps';
@@ -50,6 +55,7 @@ final class TickSeries
     public static function current(array $ticks): array
     {
         $state = is_string($ticks['state'] ?? null) ? $ticks['state'] : 'error';
+        $state = $state === 'paused' ? 'idle' : $state;
         $reason = is_string($ticks['reason'] ?? null) ? $ticks['reason'] : null;
         $window = is_array($ticks['current'] ?? null) ? $ticks['current'] : null;
         $stale = false;
@@ -57,7 +63,7 @@ final class TickSeries
         if ($state === 'error') {
             $window = self::lastWithValues($ticks);
             $stale = $window !== null;
-        } elseif ($state !== 'ok') {
+        } elseif ($state !== 'ok' && $state !== 'idle') {
             $window = null;
         }
 
@@ -77,6 +83,7 @@ final class TickSeries
             'mspt' => $mspt,
             'load' => self::number($window['load_percent'] ?? null),
             'overloaded' => $overloaded,
+            'idle' => $state === 'idle',
             'method' => is_string($window['method'] ?? null) ? $window['method'] : null,
             'level' => $window === null ? self::LEVEL_NORMAL : self::level($tps, $overloaded),
             'stale' => $stale,
@@ -124,12 +131,45 @@ final class TickSeries
                 $points[] = ['t' => $previousEnd + 1, 'v' => null];
             }
 
-            $value = in_array($window['state'] ?? null, ['ok', 'paused'], true) ? self::number($window[$field] ?? null) : null;
+            $value = in_array($window['state'] ?? null, self::WITH_VALUES, true) ? self::number($window[$field] ?? null) : null;
             $points[] = ['t' => $window['ended_at'], 'v' => $value];
             $previousEnd = $window['ended_at'];
         }
 
         return $points;
+    }
+
+    /**
+     * The values of points with each gap after a value filled with the last value before it, null where
+     * the line has a value of its own: a second, dashed line that bridges the gaps. The values next to a
+     * gap are part of it, so it joins the line on both sides. Gaps before the first value stay empty.
+     *
+     * @param  list<Point>  $points
+     * @return list<float|null>
+     */
+    public static function filled(array $points): array
+    {
+        $values = array_column($points, 'v');
+        $filled = array_fill(0, count($values), null);
+        $last = null;
+
+        foreach ($values as $i => $value) {
+            if ($value !== null) {
+                if ($i > 0 && $values[$i - 1] === null && $last !== null) {
+                    $filled[$i] = $value;
+                }
+
+                $last = $value;
+            } elseif ($last !== null) {
+                $filled[$i] = $last;
+
+                if ($values[$i - 1] !== null) {
+                    $filled[$i - 1] = $values[$i - 1];
+                }
+            }
+        }
+
+        return $filled;
     }
 
     /**

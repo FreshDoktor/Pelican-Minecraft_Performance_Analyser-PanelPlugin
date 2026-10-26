@@ -330,11 +330,12 @@ return [
         'mspt_busy' => 'Time the Server thread works on one tick, waiting for a CPU included, averaged over 5 seconds. Up to 50 ms the server keeps 20 TPS.',
         'mspt_unknown' => 'The time of a tick can\'t be measured right now.',
         'stale' => 'The last measuring failed, these are the last values. Trying again.',
+        'not_measured' => 'Not measured (last value)',
         'no_server' => 'No server.',
         'states' => [
             'starting' => 'Measuring starts…',
             'jvm_starting' => 'The JVM is starting, measuring begins in half a minute.',
-            'paused' => 'The server is paused, nobody is online.',
+            'idle' => 'Idle: the Server thread has hardly anything to do (nobody online, or the server is paused).',
             'suspended' => 'A lag analysis is running, measuring goes on after it.',
             'unsupported' => 'No tick loop found yet: the world is still loading, or the bridge doesn\'t know this Minecraft version.',
             'no_server_thread' => 'No Server thread yet, is the server still starting?',

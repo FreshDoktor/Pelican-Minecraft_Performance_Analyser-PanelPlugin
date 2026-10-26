@@ -6,7 +6,7 @@ use FreshDoktor\MinecraftPerformanceAnalyser\Support\TickSeries as T;
 use PHPUnit\Framework\TestCase;
 
 /**
- * What the widgets under the console show, from the example answers of GET /ticks (bridge 0.3.0).
+ * What the widgets under the console show, from the example answers of GET /ticks (bridge 0.3.1).
  */
 class TickSeriesTest extends TestCase
 {
@@ -72,7 +72,6 @@ class TickSeriesTest extends TestCase
     public function test_states_without_values(): void
     {
         $cases = [
-            'ticks-paused' => ['paused', null],
             'ticks-starting' => ['starting', 'first_window'],
             'ticks-jvm-starting' => ['starting', 'jvm_starting'],
             'ticks-suspended' => ['suspended', 'profile_running'],
@@ -89,12 +88,51 @@ class TickSeriesTest extends TestCase
             $this->assertSame(T::LEVEL_NORMAL, $current['level'], $example);
         }
 
-        // Paused: the counting window keeps its values, the line goes on.
-        $this->assertSame([null, 20.02], array_column(T::points(DiagnosticsTest::example('ticks-paused'), T::TPS), 'v'));
-        $this->assertSame([null, 0.05], array_column(T::points(DiagnosticsTest::example('ticks-paused'), T::MSPT), 'v'));
         $this->assertSame([], T::points(DiagnosticsTest::example('ticks-starting'), T::TPS));
         // The lag analysis is a gap after the last value.
         $this->assertSame([4.2, null], array_column(T::points(DiagnosticsTest::example('ticks-suspended'), T::MSPT), 'v'));
+    }
+
+    public function test_an_idle_server_keeps_its_values(): void
+    {
+        $ticks = DiagnosticsTest::example('ticks-idle');
+        $current = T::current($ticks);
+
+        // The counting window has values: shown, with the hint idle.
+        $this->assertSame(T::STATE_VALUES, $current['state']);
+        $this->assertTrue($current['idle']);
+        $this->assertSame(20.02, $current['tps']);
+        $this->assertSame(0.05, $current['mspt']);
+        $this->assertSame(T::LEVEL_NORMAL, $current['level']);
+        $this->assertSame([null, 20.02], array_column(T::points($ticks, T::TPS), 'v'));
+        $this->assertSame([null, 0.05], array_column(T::points($ticks, T::MSPT), 'v'));
+
+        // The sampling window has none: the text idle.
+        $ticks['current'] = $ticks['history'][0];
+        $this->assertSame('idle', T::current($ticks)['state']);
+
+        // Bridges up to 0.3.0 called it paused.
+        $ticks['state'] = 'paused';
+        $ticks['history'][1]['state'] = 'paused';
+        $this->assertSame('idle', T::current($ticks)['state']);
+        $this->assertSame([null, 20.02], array_column(T::points($ticks, T::TPS), 'v'));
+        $this->assertFalse(T::current(DiagnosticsTest::example('ticks'))['idle']);
+    }
+
+    public function test_gaps_are_filled_with_the_last_value(): void
+    {
+        $points = fn (array $values) => array_map(fn ($v) => ['t' => 0, 'v' => $v], $values);
+
+        // A lag analysis in between: dashed at the last value, joining the line on both sides.
+        $this->assertSame([null, 20.0, 20.0, 20.0, 14.2, null], T::filled($points([18.0, 20.0, null, null, 14.2, 15.0])));
+        // Still running at the end: up to now.
+        $this->assertSame([null, 4.8, 4.8], T::filled($points([4.2, 4.8, null])));
+        // Nothing before the first value, nothing without gaps.
+        $this->assertSame([null, null, null], T::filled($points([null, null, 3.0])));
+        $this->assertSame([null, null], T::filled($points([1.0, 2.0])));
+        $this->assertSame([], T::filled([]));
+        // The example of a running lag analysis.
+        $this->assertSame([4.2, 4.2], T::filled(T::points(DiagnosticsTest::example('ticks-suspended'), T::MSPT)));
     }
 
     public function test_a_failed_window_keeps_the_last_values(): void

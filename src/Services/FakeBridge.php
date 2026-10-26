@@ -18,19 +18,19 @@ use Illuminate\Support\Facades\Storage;
  * status (node-status-m1.json …), its features in the server status, and 501 not_implemented for what it
  * can't do yet (m1: threads, histogram, profiles, ticks; m2: profiles, ticks; m3: ticks, a bridge 0.1.0).
  *
- * GET /ticks answers ticks.json, or the example MPA_FAKE_TICKS names (overloaded, paused, starting,
+ * GET /ticks answers ticks.json, or the example MPA_FAKE_TICKS names (overloaded, idle, starting,
  * suspended, unsupported, jvm-starting), to look at the other states of the widget under the console.
  *
- * The examples are docs/examples of the bridge repo at commit b058f6d (bridge 0.3.0, the tick monitor counts the ticks
+ * The examples are docs/examples of the bridge repo at commit a3caae8 (bridge 0.3.1, the tick monitor counts the ticks
  * from its second window on), copied unchanged. The answers carry the User-Agent of the bridge with the node's token id, so they pass
  * the same checks as real ones.
  */
 class FakeBridge
 {
     /** bridge_version of node-status.json. */
-    public const VERSION = '0.3.0';
+    public const VERSION = '0.3.1';
 
-    /** Stands for the bridge with every feature the plugin uses (0.3.0, profiles and the tick monitor). */
+    /** Stands for the bridge with every feature the plugin uses (0.3.1, profiles and the tick monitor). */
     public const ALL = 4;
 
     /** features of the older bridges, as in node-status-m1.json, -m2.json and -m3.json. */
@@ -41,7 +41,7 @@ class FakeBridge
     ];
 
     /** Examples of GET /ticks besides ticks.json, by the value of MPA_FAKE_TICKS. */
-    public const TICKS_EXAMPLES = ['overloaded', 'paused', 'starting', 'suspended', 'unsupported', 'jvm-starting'];
+    public const TICKS_EXAMPLES = ['overloaded', 'idle', 'starting', 'suspended', 'unsupported', 'jvm-starting'];
 
     /**
      * Milestone of the bridge to play, from the config value: true (or anything else) all, m1 / m2 / m3 that one.

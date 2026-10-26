@@ -35,7 +35,7 @@ return [
     'fake_bridge' => env('MPA_FAKE_BRIDGE', false),
 
     // Development only, with fake_bridge: the state GET /ticks plays for the widget under the console,
-    // empty for normal values, else overloaded, paused, starting, suspended, unsupported or jvm-starting.
+    // empty for normal values, else overloaded, idle, starting, suspended, unsupported or jvm-starting.
     'fake_ticks' => env('MPA_FAKE_TICKS'),
 
     // Seconds between two readings of the live heap (GET /metrics?live=1, two attach commands, one with a

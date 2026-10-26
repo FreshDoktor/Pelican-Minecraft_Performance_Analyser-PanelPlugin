@@ -46,6 +46,7 @@ class TpsChart extends TickChart
         $counting = $current['method'] === 'counting';
 
         return match (true) {
+            $current['idle'] => $this->trans('states.idle'),
             $current['tps'] === null && $current['overloaded'] => $this->trans('tps_overloaded'),
             $counting && $current['overloaded'] => $this->trans('tps_counting'),
             $counting && $current['tps'] !== null && $current['tps'] > self::CATCHING_UP_TPS => $this->trans('tps_catching_up'),

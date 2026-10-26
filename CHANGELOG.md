@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 - 2026-10-26
+
+### Changed
+
+- A server whose Server thread has hardly anything to do is shown as idle instead of paused: the bridge can't tell whether nobody is online or the server is paused (versions before 1.21.2 don't pause at all). Idle windows show their TPS and MSPT, with the hint below. Needs MPA Bridge 0.3.1, older bridges still work
+- Gaps in the TPS and MSPT charts (a lag analysis running, a window without values) are bridged by a dashed line at the last value
+
 ## 0.3.0 - 2026-10-26
 
 ### Changed

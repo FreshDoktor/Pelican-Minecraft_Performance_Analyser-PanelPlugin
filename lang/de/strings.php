@@ -330,11 +330,12 @@ return [
         'mspt_busy' => 'So lange arbeitet der Server thread an einem Tick, Warten auf eine CPU eingerechnet, gemittelt über 5 Sekunden. Bis 50 ms schafft der Server 20 TPS.',
         'mspt_unknown' => 'Die Dauer eines Ticks lässt sich gerade nicht messen.',
         'stale' => 'Die letzte Messung ist fehlgeschlagen, das sind die letzten Werte. Neuer Versuch läuft.',
+        'not_measured' => 'Nicht gemessen (letzter Wert)',
         'no_server' => 'Kein Server.',
         'states' => [
             'starting' => 'Messung startet…',
             'jvm_starting' => 'Die JVM startet, die Messung beginnt in einer halben Minute.',
-            'paused' => 'Der Server ist pausiert, es ist keiner online.',
+            'idle' => 'Leerlauf: Der Server thread hat kaum etwas zu tun (niemand online, oder der Server ist pausiert).',
             'suspended' => 'Eine Lag-Analyse läuft, danach geht die Messung weiter.',
             'unsupported' => 'Noch keine Tick-Schleife gefunden: Die Welt lädt noch, oder die Bridge kennt diese Minecraft-Version nicht.',
             'no_server_thread' => 'Noch kein Server thread, startet der Server noch?',

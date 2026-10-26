@@ -157,7 +157,7 @@ class TickMonitor
             if (TickSeries::unsupportedForGood($ticks, $jvmStartedAt, $now, self::UNSUPPORTED_AFTER_MS, self::UNSUPPORTED_MONITOR_MS)) {
                 Cache::put($key, $jvmStartedAt, self::UNSUPPORTED_KEEP_SECONDS);
             }
-        } elseif (in_array($state, ['ok', 'paused'], true) && Cache::has($key)) {
+        } elseif (in_array($state, ['ok', 'idle', 'paused'], true) && Cache::has($key)) {
             Cache::forget($key);
         }
     }
