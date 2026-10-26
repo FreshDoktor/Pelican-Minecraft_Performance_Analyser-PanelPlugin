@@ -8,6 +8,7 @@ The first release, together with MPA Bridge 1.0.0.
 
 - The MPA Bridge installs with one script on the node (`install.sh` of its release), which asks for the panel's IP. The hint on a node without a bridge says so
 - README for users: installation of the bridge and the plugin, update, troubleshooting
+- Every release on GitHub carries `minecraft-performance-analyser.zip`, built by a workflow from the tag
 
 ### Changed
 

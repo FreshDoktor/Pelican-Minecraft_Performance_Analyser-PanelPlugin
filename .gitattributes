@@ -3,3 +3,4 @@
 # Not part of the plugin zip (git archive)
 /tests export-ignore
 /phpunit.xml.dist export-ignore
+/.github export-ignore

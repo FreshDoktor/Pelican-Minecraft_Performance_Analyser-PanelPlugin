@@ -1,0 +1,44 @@
+# Packs the plugin for a tag v<version> and publishes the GitHub release with
+# minecraft-performance-analyser.zip, to import in the panel. The zip is the
+# tagged tree without what .gitattributes marks export-ignore (tests, PHPUnit).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tag matches the version
+        run: |
+          version="$(jq -r .version plugin.json)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $version in plugin.json"
+            exit 1
+          fi
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: phpunit:12
+
+      - run: phpunit -c phpunit.xml.dist
+
+      - name: Pack the plugin
+        run: git archive --format=zip -o minecraft-performance-analyser.zip "$GITHUB_REF_NAME"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes="$(awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} /^## / {on=0} on' CHANGELOG.md)"
+          gh release create "$GITHUB_REF_NAME" minecraft-performance-analyser.zip \
+            --verify-tag --title "Minecraft Performance Analyser $version" --notes "$notes"
