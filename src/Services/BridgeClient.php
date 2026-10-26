@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Lang;
  * then (not_configured), the token only goes to the address the admin set for it, and redirects are not
  * followed.
  *
- * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 305edb3 (bridge 1.2.0, its own
+ * Endpoints, fields and error codes follow docs/API.md of the bridge, API v1 as of wing commit 3c5b97b (bridge 1.1.0, its own
  * token instead of the one of Wings). Unknown fields are ignored, as the contract asks.
  */
 class BridgeClient
@@ -37,7 +37,7 @@ class BridgeClient
     public const API_VERSION = 1;
 
     /** Commit of docs/API.md in the bridge repo this client was written against. */
-    public const CONTRACT = '305edb3';
+    public const CONTRACT = '3c5b97b';
 
     /** Address the fake mode plays, it needs no bridge set for the node. */
     public const FAKE_URL = 'http://mpa-bridge.fake';

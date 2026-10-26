@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.0.0 - 2026-10-26
+## 1.1.0 - 2026-10-26
+
+Together with MPA Bridge 1.1.0, which has a token of its own.
 
 **After updating, set up every node again:** update the MPA Bridge on each node by running its `install.sh` again (it adds a token to `/etc/pelican/mpa-bridge.yml` and prints it), then enter the bridge's address and paste that token in the panel: _Admin_ → _Nodes_ → the node → tab _MPA Bridge_. Until then the node counts as having no bridge.
 
@@ -17,6 +19,8 @@
 ### Removed
 
 - The default bridge address `<scheme>://<FQDN>:<port>` and its setting `default_port` (`MPA_BRIDGE_PORT`)
+
+## 1.0.0 - 2026-10-26
 
 The first release, together with MPA Bridge 1.0.0.
 
