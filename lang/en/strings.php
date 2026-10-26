@@ -123,6 +123,18 @@ return [
         'top_methods' => 'Top methods',
         'top_methods_hint' => 'Methods the tick time was spent in (own time, JVM internals count for their caller).',
         'method' => 'Method',
+        'names' => [
+            'ready' => 'Readable names for Minecraft :version: :source. Hover a method for the name the server runs it as.',
+            'building' => 'Downloading readable names for Minecraft :version…',
+            'unavailable' => 'There are no readable names for Minecraft :version, the methods keep the names the server runs them as.',
+            'failed' => 'The readable names for Minecraft :version could not be downloaded, the panel tries again in a while.',
+            'no_version' => 'The Minecraft version of the server is unknown, so the methods keep the names the server runs them as.',
+            'sources' => [
+                'intermediary' => 'Fabric\'s intermediary names translated to Mojang\'s',
+                'srg' => 'Forge\'s SRG names translated to Mojang\'s',
+                'mcp' => 'Forge\'s SRG names translated to MCP\'s',
+            ],
+        ],
         'owners' => [
             'minecraft' => 'Minecraft',
             'loader' => 'Loader / server',
@@ -139,6 +151,7 @@ return [
             'empty' => 'Nothing to show.',
             'root' => 'all',
             'samples' => ':count samples (:percent %)',
+            'runs_as' => 'Runs as :name',
             'deeper' => ':count deeper levels are not shown, click a frame to zoom in.',
         ],
     ],

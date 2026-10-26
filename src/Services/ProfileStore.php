@@ -14,8 +14,8 @@ use Throwable;
  * local disk: storage/app/private/minecraft-performance-analyser/profiles/<server uuid>/. The bridge
  * forgets a result after 15 minutes, these are for looking at again, comparing and downloading.
  *
- * A file holds the profile object of the bridge as it came (the raw profile for the download) and who
- * started it. The share per mod is worked out anew when a profile is opened, so it uses the current
+ * A file holds the profile object of the bridge as it came (the raw profile for the download), who
+ * started it and the Minecraft version the server ran (for the readable method names, MethodNameService). The share per mod is worked out anew when a profile is opened, so it uses the current
  * package index.
  *
  * @phpstan-type StoredProfile array{key: string, id: string, mode: string, seconds: int, started_at: int, user: ?string, state: string}
@@ -54,13 +54,14 @@ class ProfileStore
      *
      * @param  array<string, mixed>  $profile  profile object of the bridge, state done
      */
-    public function save(Server $server, array $profile, ?User $user): string
+    public function save(Server $server, array $profile, ?User $user, ?string $minecraftVersion = null): string
     {
         $key = self::key($profile);
 
         $this->disk()->put($this->path($server, $key), (string) json_encode([
             'saved_at' => now()->getTimestampMs(),
             'user' => $user?->username,
+            'minecraft' => $minecraftVersion,
             'profile' => $profile,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
@@ -101,7 +102,7 @@ class ProfileStore
     }
 
     /**
-     * @return array{saved_at: int, user: ?string, profile: array<string, mixed>}|null
+     * @return array{saved_at: int, user: ?string, minecraft?: ?string, profile: array<string, mixed>}|null
      */
     public function get(Server $server, string $key): ?array
     {

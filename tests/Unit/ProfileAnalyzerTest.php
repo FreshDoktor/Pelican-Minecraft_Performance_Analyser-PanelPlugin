@@ -259,7 +259,7 @@ class ProfileAnalyzerTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    protected static function fixture(string $name): array
+    public static function fixture(string $name): array
     {
         $json = file_get_contents(dirname(__DIR__).'/fixtures/'.$name.'.json');
 

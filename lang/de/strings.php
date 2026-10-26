@@ -123,6 +123,18 @@ return [
         'top_methods' => 'Top-Methoden',
         'top_methods_hint' => 'Methoden, in denen die Tick-Zeit lag (eigene Zeit, JVM-Interna zählen beim Aufrufer).',
         'method' => 'Methode',
+        'names' => [
+            'ready' => 'Lesbare Namen für Minecraft :version: :source. Fährt die Maus über eine Methode, erscheint der Name, unter dem der Server sie ausführt.',
+            'building' => 'Lade lesbare Namen für Minecraft :version herunter…',
+            'unavailable' => 'Für Minecraft :version gibt es keine lesbaren Namen, die Methoden behalten die Namen, unter denen der Server sie ausführt.',
+            'failed' => 'Die lesbaren Namen für Minecraft :version ließen sich nicht herunterladen, das Panel versucht es später noch einmal.',
+            'no_version' => 'Die Minecraft-Version des Servers ist unbekannt, daher behalten die Methoden die Namen, unter denen der Server sie ausführt.',
+            'sources' => [
+                'intermediary' => 'Fabrics Intermediary-Namen übersetzt in die von Mojang',
+                'srg' => 'SRG-Namen von Forge übersetzt in die von Mojang',
+                'mcp' => 'SRG-Namen von Forge übersetzt in die von MCP',
+            ],
+        ],
         'owners' => [
             'minecraft' => 'Minecraft',
             'loader' => 'Loader / Server',
@@ -139,6 +151,7 @@ return [
             'empty' => 'Nichts zu zeigen.',
             'root' => 'alles',
             'samples' => ':count Proben (:percent %)',
+            'runs_as' => 'Läuft als :name',
             'deeper' => ':count tiefere Ebenen sind ausgeblendet, ein Klick auf einen Frame zoomt hinein.',
         ],
     ],

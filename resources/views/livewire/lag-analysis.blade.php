@@ -233,6 +233,9 @@
                     <section class="mpa-card">
                         <h3>{{ trans($s.'top_methods') }}</h3>
                         <span class="mpa-muted">{{ trans($s.'top_methods_hint') }}</span>
+                        @if ($names)
+                            <span class="mpa-muted">{{ trans($s.'names.'.$names['state'], ['version' => (string) $names['version'], 'source' => trans($s.'names.sources.'.$names['mapping'])]) }}</span>
+                        @endif
                         <table>
                             <thead>
                                 <tr>
@@ -244,7 +247,7 @@
                             <tbody>
                                 @foreach ($summary['top_methods'] as $method)
                                     <tr>
-                                        <td class="mpa-frame">
+                                        <td class="mpa-frame" @isset($method['raw_frame']) title="{{ trans($s.'flame.runs_as', ['name' => $method['raw_frame']]) }}" @endisset>
                                             {{ $method['frame'] }}
                                             <div class="mpa-muted">{{ $this->ownerName(['key' => $method['owner'], 'name' => $method['owner_name'], 'kind' => $method['owner']]) }}</div>
                                         </td>
@@ -289,7 +292,8 @@
     Flamegraph of the Server thread for the tab Lag analysis, drawn on a canvas.
 
     The component sends the stacks once per opened profile as the browser event mpa-flame:
-    {flame: {owners: [{key, name, kind}], frames: [[name, ownerIndex]], stacks: [[[frameIndex…], count, idle]]}}.
+    {flame: {owners: [{key, name, kind}], frames: [[name, ownerIndex, originalName?]], stacks: [[[frameIndex…], count, idle]]}}.
+    originalName is there when name is a readable one (MethodNames), the tooltip shows both.
     The tree is built here, so filtering by a mod (event mpa-flame-filter from the table) and showing or
     hiding the idle time need no request. Root at the top, callees below, width = samples.
 
@@ -389,7 +393,7 @@ Alpine.data('mpaFlamegraph', (config) => {
                     let child = node.children.get(id);
 
                     if (!child) {
-                        child = { name: data.frames[id][0], owner: data.frames[id][1], value: 0, children: new Map() };
+                        child = { name: data.frames[id][0], owner: data.frames[id][1], raw: data.frames[id][2] ?? null, value: 0, children: new Map() };
                         node.children.set(id, child);
                     }
 
@@ -536,7 +540,7 @@ Alpine.data('mpaFlamegraph', (config) => {
             }
 
             const percent = (rect.node.value / Math.max(1, root.value) * 100).toFixed(2);
-            tip.textContent = `${rect.node.name}\n${rect.node.owner >= 0 ? this.ownerLabel(rect.node.owner) + ' · ' : ''}${this.S.samples.replace(':count', rect.node.value).replace(':percent', percent)}`;
+            tip.textContent = `${rect.node.name}\n${rect.node.raw ? this.S.runs_as.replace(':name', rect.node.raw) + '\n' : ''}${rect.node.owner >= 0 ? this.ownerLabel(rect.node.owner) + ' · ' : ''}${this.S.samples.replace(':count', rect.node.value).replace(':percent', percent)}`;
             tip.style.whiteSpace = 'pre-line';
 
             const box = this.$refs.canvas.getBoundingClientRect();

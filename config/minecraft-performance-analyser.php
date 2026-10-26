@@ -21,6 +21,11 @@ return [
     // Largest jar of mods/ or plugins/ (in MB) that is read to tell which mod a frame of a profile belongs to.
     'max_jar_size_mb' => (int) env('MPA_MAX_JAR_SIZE_MB', 64),
 
+    // Readable method names in the lag analysis of Fabric and Forge servers, which run with ids such as
+    // method_18765. The panel downloads the mappings of a Minecraft version the first time a profile needs
+    // them (from Mojang, maven.fabricmc.net and maven.minecraftforge.net) and keeps the names on its local disk.
+    'readable_names' => (bool) env('MPA_READABLE_NAMES', true),
+
     // Whether the certificate of a bridge reached over https is checked. Bridges reached over http have none.
     'verify_tls' => (bool) env('MPA_BRIDGE_VERIFY_TLS', true),
 
